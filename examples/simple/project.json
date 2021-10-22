@@ -1,0 +1,22 @@
+
+{
+    "stream_source" : {
+        "url": "sqs://"
+    },
+    "data_processes":[
+        {
+            "name": "",
+            "discription": "",
+            "processes":[
+                {
+                    "name":"",
+                    "function": "split",
+                    "parameters": {}
+                },
+                {
+
+                }
+            ]
+        }
+    ]
+}
