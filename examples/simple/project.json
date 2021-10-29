@@ -1,20 +1,41 @@
 
 {
-    "stream_source" : {
+    "stream_sources" : [{
+        "name": "source_name",
         "url": "sqs://"
-    },
+    }],
     "data_processes":[
         {
             "name": "",
             "discription": "",
+            "source": "source_name",
             "processes":[
                 {
                     "name":"",
-                    "function": "split",
-                    "parameters": {}
+                    "function": "splitby",
+                    "args": ["app_id"],
+                    "kv_args": {}
                 },
                 {
-
+                    "name": "",
+                    "function": "save",
+                    "args": []
+                }
+            ]
+        },
+        {
+            "name": "",
+            "discription": "",
+            "source": "source_name",
+            "schedule": "h+10m",
+            "processes": [
+                {
+                    "name": "",
+                    "function": "merge_file",
+                    "args": [],
+                    "kv_args": {
+                        "format": "parquet"
+                    }
                 }
             ]
         }
