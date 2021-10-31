@@ -1,9 +1,24 @@
 
 {
-    "stream_sources" : [{
-        "name": "source_name",
-        "url": "sqs://"
-    }],
+    "streams" : [
+        {
+            "name": "source_name",
+            "url": "sqs://"
+        }
+    ],
+    "storages": [
+        {
+            "home": "app_home",
+            "url": "s3://xxx/{app_id}/"
+        }
+    ],
+    "webhooks": [
+        {
+            "url": "/xxx/xxx",
+            "default_action": "save_to_queue",
+            "schema": {}
+        }
+    ],
     "data_processes":[
         {
             "name": "",
@@ -28,6 +43,7 @@
             "discription": "",
             "source": "source_name",
             "schedule": "h+10m",
+            "conditions": "//wait for all data in some time.",
             "processes": [
                 {
                     "name": "",
