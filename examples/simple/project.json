@@ -50,7 +50,23 @@
                     "function": "merge_file",
                     "args": [],
                     "kv_args": {
-                        "format": "parquet"
+                        "format": "parquet",
+                        "pk_filter": {
+                            "key": "event_id",
+                            "duration": "3h"
+                        },
+                        "pk_index": {
+                            "build": true,
+                            "key": "event_id"
+                        }
+                    }
+                },
+                {
+                    "name": "",
+                    "function": "save",
+                    "args": [],
+                    "kv_args": {
+                        "path": "s3://"
                     }
                 }
             ]
