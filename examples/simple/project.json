@@ -12,6 +12,14 @@
             "url": "s3://xxx/{app_id}/"
         }
     ],
+    "pk_caches": [
+        {
+            "name": "",
+            "description": "used for deduplicate data",
+            "url": "redis://xx/",
+            "timeout": "1h"
+        }
+    ],
     "webhooks": [
         {
             "url": "/xxx/xxx",
@@ -28,8 +36,23 @@
                 {
                     "name":"",
                     "function": "splitby",
-                    "args": ["app_id"],
+                    "args":   ["app_id"],
                     "kv_args": {}
+                },
+                {
+                    "name": "",
+                    "function": "pk_deduplicate",
+                    "kv_args": {
+                        "pk_cache": "cache_cluster_name"
+                    }
+                },
+                {
+                    "name": "",
+                    "function": "pk_index",
+                    "args": [],
+                    "kv_args": {
+                        "key": "app_id, event_id"
+                    }
                 },
                 {
                     "name": "",
@@ -50,15 +73,23 @@
                     "function": "merge_file",
                     "args": [],
                     "kv_args": {
-                        "format": "parquet",
-                        "pk_filter": {
-                            "key": "event_id",
-                            "duration": "3h"
-                        },
-                        "pk_index": {
-                            "build": true,
-                            "key": "event_id"
-                        }
+                        "format": "parquet"
+                    }
+                },
+                {
+                    "name": "",
+                    "function": "pk_deduplicate",
+                    "kv_args": {
+                        "pk_index": "pk",
+                        "duration": "3h"
+                    }
+                },
+                {
+                    "name": "pk",
+                    "function": "pk_index",
+                    "args": [],
+                    "kv_args": {
+                        "key": "app_id, event_id"
                     }
                 },
                 {
