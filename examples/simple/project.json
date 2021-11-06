@@ -41,7 +41,7 @@
                 },
                 {
                     "name": "",
-                    "function": "pk_deduplicate",
+                    "function": "deduplicate",
                     "kv_args": {
                         "pk_cache": "cache_cluster_name"
                     }
@@ -78,7 +78,7 @@
                 },
                 {
                     "name": "",
-                    "function": "pk_deduplicate",
+                    "function": "deduplicate",
                     "kv_args": {
                         "pk_index": "pk",
                         "duration": "3h"
