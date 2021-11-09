@@ -8,7 +8,7 @@
     ],
     "storages": [
         {
-            "home": "app_home",
+            "name": "app_home",
             "url": "s3://xxx/{app_id}/"
         }
     ],
@@ -30,7 +30,7 @@
     "data_processes":[
         {
             "name": "",
-            "discription": "",
+            "description": "",
             "source": "source_name",
             "processes":[
                 {
@@ -63,7 +63,7 @@
         },
         {
             "name": "",
-            "discription": "",
+            "description": "",
             "source": "source_name",
             "schedule": "h+10m",
             "conditions": "//wait for all data in some time.",

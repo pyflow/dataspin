@@ -26,7 +26,7 @@ here = os.path.dirname(os.path.abspath(__file__))
 with open(
         os.path.join(here, 'dataspin/__init__.py'), 'r', encoding='utf8'
 ) as f:
-    version = re.search(r'__version__ = \'(.*?)\'', f.read()).group(1)
+    version = re.search(r'__version__ = \"(.*?)\"', f.read()).group(1)
 
 setup(
     name='dataspin',
