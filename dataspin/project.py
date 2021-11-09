@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 import json
 import dataclass_factory
 from typing import List, Optional
+from basepy.log import logger
 
 @dataclass
 class StreamConfig:
@@ -25,7 +26,6 @@ class WebhookConfig:
     url: str
     default_action: str
     schema: Optional[dict] = field(default_factory=dict)
-    
 
 @dataclass
 class ProcessFunctionConfig:
@@ -55,6 +55,5 @@ class ProjectConfig:
         with open(project_fp, 'rb') as pf:
             data = json.loads(pf.read())
             conf = factory.load(data, ProjectConfig)
-            #print(factory.dump(conf))
+            logger.debug("loaded project: ", conf=factory.dump(conf))
             return conf
-
