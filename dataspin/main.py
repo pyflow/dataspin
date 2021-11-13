@@ -15,4 +15,5 @@ def run(project):
     conf = ProjectConfig.load(project)
     engine = SpinEngine(conf)
     engine.run()
+
 main.add_command(run)

@@ -1,9 +1,11 @@
 
-from .providers import get_provider_class
+from .providers import get_provider_class, get_provider
 
 class DataStream:
     def __init__(self, conf):
         self.conf = conf
+        self._provider = get_provider(conf.url)
+        
     
 class ObjectStorage:
     def __init__(self, conf):

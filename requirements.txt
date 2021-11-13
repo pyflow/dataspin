@@ -2,3 +2,4 @@ dataclass-factory>=2.12
 click>=6.7
 basepy>=0.3.5
 boto3>=1.19.12
+tencentcloud-sdk-python>=3.0.524
