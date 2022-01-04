@@ -3,7 +3,8 @@
     "streams" : [
         {
             "name": "source_name",
-            "url": "sqs://"
+            "data_format": "aws|dataspin|, #format of data",
+            "url": "sqs://us-east-1/{sqs_name}?access_key=xx&secret_key=yy"
         }
     ],
     "storages": [

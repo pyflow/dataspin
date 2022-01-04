@@ -8,6 +8,7 @@ from basepy.log import logger
 class StreamConfig:
     name: str
     url: str
+    data_format: Optional[str] = "dataspin"
 
 @dataclass
 class StorageConfig:

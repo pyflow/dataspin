@@ -5,18 +5,18 @@ import re
 from setuptools import find_packages, setup
 
 install_requires = [
-    'urllib3==1.24.2',
-    'PyYAML==3.13',
-    'pytz==2020.1',
-    'pyarrow==1.0.1',
-    'click==6.7',
-    'pendulum==2.1.2',
-    'pyRFC3339==1.1',
+    'urllib3>=1.24.2',
+    'PyYAML>=3.13',
+    'pytz>=2020.1',
+    'pyarrow>=1.0.1',
+    'click>=6.7',
+    'pendulum>=2.1.2',
+    'pyRFC3339>=1.1',
     'basepy>=0.3.5'
 ]
 # pip install -e '.[test]'
 test_requires = [
-    'pytest==6.2.4',
+    'pytest>=6.2.4',
     # 'pytest-asyncio',
     # 'pytest-cov',
     # 'pytest-mock',
