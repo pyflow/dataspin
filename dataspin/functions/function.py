@@ -39,8 +39,8 @@ class SplitByFunction(Function):
                 else:
                     data_map[split_key].append(data)
             for split_key, value_list in data_map.items():
-                storage_path = os.path.join(process_temp_dir, self._name + '/' + split_key)
-                LocalStorageProvider.save(storage_path)
+                storage_path = os.path.join(save_temp_dir, self._name + '/' + split_key)
+                LocalStorageProvider.save(storage_path, value_list)
                 temp_dir_list.append(storage_path)
         return temp_dir_list
 
@@ -56,4 +56,3 @@ class SaveFunction(Function):
             if save_temp_sub_dir in process_temp_dir:
                 destination_path = process_temp_dir.replace(save_temp_sub_dir, '')
                 pass
-

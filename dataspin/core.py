@@ -90,7 +90,7 @@ class SpinEngine:
             function_type = task.function
             function = get_function_class(function_type, task)
             process_temp_dir_list = function.process(process_temp_dir_list, self.temp_dir_path, last_task_name)
-            last_task_name= function
+            last_task_name = function
 
     def run(self):
         for process_name, process in self.data_processes.items():

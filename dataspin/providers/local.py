@@ -27,13 +27,13 @@ class LocalStorageProvider:
             return data_list
         if os.path.isdir(path):
             for file_name in os.listdir(path):
-                cls.read_file(file_name + file_name, data_list)
+                cls.read_file(path + file_name, data_list)
             return data_list
 
     @classmethod
     def save(cls, path, data_list):
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'wb') as f:
+        with open(path, 'w') as f:
             for data in data_list[: -1]:
                 f.write(json.dumps(data))
                 f.writelines('\n')
