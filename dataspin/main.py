@@ -1,7 +1,7 @@
-from .project import ProjectConfig
+from dataspin.project import ProjectConfig
 import click
 from basepy.log import logger
-from .core import SpinEngine
+from dataspin.core import SpinEngine
 
 logger.add('stdout')
 
@@ -17,3 +17,9 @@ def run(project):
     engine.run()
 
 main.add_command(run)
+
+
+if __name__ == '__main__':
+    conf = ProjectConfig.load('/Users/yuze/Desktop/dataspin_test.json')
+    engine = SpinEngine(conf)
+    engine.run()

@@ -8,11 +8,13 @@ from basepy.log import logger
 class StreamConfig:
     name: str
     url: str
+    kv_args: Optional[dict] = field(default_factory=dict)
 
 @dataclass
 class StorageConfig:
     name: str
     url: str
+    kv_args: Optional[dict] = field(default_factory=dict)
 
 @dataclass
 class PrimaryKeyCacheConfig:
@@ -51,7 +53,7 @@ class ProjectConfig:
 
     @classmethod
     def load(cls, project_fp):
-        factory =  dataclass_factory.Factory()
+        factory = dataclass_factory.Factory()
         with open(project_fp, 'rb') as pf:
             data = json.loads(pf.read())
             conf = factory.load(data, ProjectConfig)
