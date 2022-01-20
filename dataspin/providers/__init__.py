@@ -2,6 +2,7 @@
 from urllib.parse import urlparse, parse_qsl
 import os
 
+
 def get_provider_class(url):
     parsed = urlparse(url)
     scheme = parsed.scheme
@@ -12,9 +13,11 @@ def get_provider_class(url):
         elif scheme == 'sqs':
             return SQSStreamProvider
     elif scheme in ["local", "file"]:
-        from .local import LocalStreamProvider
+        from .local import LocalStreamProvider, LocalStorageProvider
         if scheme == "local":
             return LocalStreamProvider
+        if scheme == 'file':
+            return LocalStorageProvider
     
     raise Exception(f'No provider for scheme {scheme}')
 
@@ -33,8 +36,15 @@ def get_provider(url, name=None):
             print(params)
             return SQSStreamProvider(**params)
     elif scheme in ["local", "file"]:
-        from .local import LocalStreamProvider
+        from .local import LocalStreamProvider, LocalStorageProvider
         if scheme == "local":
             return LocalStreamProvider(parsed)
+        if scheme == 'file':
+            return LocalStorageProvider(parsed)
     
     raise Exception(f'No provider for scheme {scheme}')
+
+
+if __name__ == '__main__':
+    a = urlparse('sqs://bytepower-data-parquet-schedule-modelspin?region=cn-northwest-1&aws_access_key_id=xxx&aws_secret_access_key=xxx')
+    print(a)

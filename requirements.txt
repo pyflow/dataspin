@@ -3,3 +3,5 @@ click>=6.7
 basepy>=0.3.5
 boto3>=1.19.12
 tencentcloud-sdk-python>=3.0.524
+filetype>=1.0.9
+

@@ -142,3 +142,6 @@ spark_demo/
 dremio_demo/
 flink_demo/
 datafusion_demo/
+
+#venv
+dataspin_venv/
