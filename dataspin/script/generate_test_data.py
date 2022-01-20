@@ -1,12 +1,14 @@
 import datetime
+from distutils.util import execute
 import gzip
 import json
 import os
 from random import randint
 import shutil
+import time
 from typing import List
 import uuid
-
+import click
 
 app_ids = ['APPIOXDKXIESP', 'APPOWLSLSDWLD', 'APPSISEKIDESS']
 
@@ -39,8 +41,9 @@ def generate_test_data(file_dir='temp', file_numbers=1, data_counts=1000, duplic
     if data_format not in ('json'):
         raise Exception('data_format must be json')
     if time_range < 1:
-        raise Exception('data_format must be json')
+        raise Exception('time_range must larger than 1')
     file_dir = file_dir.strip('/')
+    print('file_dir=%s' % file_dir)
     if os.path.exists(file_dir):
         shutil.rmtree(file_dir)
     os.makedirs(file_dir)
@@ -72,17 +75,39 @@ def generate_test_data(file_dir='temp', file_numbers=1, data_counts=1000, duplic
             data_list.append(json_data)
     if file_numbers > len(data_list):
         for i in range(0, file_numbers):
-            save_json_file(file_dir='temp', file_name='%s_temp.log' %
+            save_json_file(file_dir, file_name='%s_temp.log' %
                            i, data_list=data_list[i:i+1] if i < len(data_list) else [])
     else:
         step = int(len(data_list)/file_numbers)+1
         n = 0
         for i in range(0, len(data_list), step):
-            save_json_file(file_dir='temp', file_name='%s_temp.log' %
+            save_json_file(file_dir, file_name='%s_temp.log' %
                            n, data_list=data_list[i:i+step])
             n = n + 1
 
 
-if __name__ == '__main__':
-    generate_test_data(file_numbers=1, data_counts=4,
-                       duplicate_data_count=0, time_unit='minute')
+@click.group(context_settings={'help_option_names': ['-h', '--help']})
+def cli():
+    pass
+
+
+@cli.command()
+@click.option('--execute_times', '-et', type=int, default=1, help='execute times,infinite loop when equals 0 ,default 1')
+@click.option('--execute_duration', '-ed', type=int, default=60, help='execute duration,unit is second,default 60')
+@click.option('--file_dir', '-fd', default='temp', help='file dir')
+@click.option('--file_numbers', '-fn', type=int, default=1, help='file numbers')
+@click.option('--data_counts', '-dc', type=int, default=1000, help='data counts')
+@click.option('--duplicate_data_count', '-dd', type=int, default=1, help='duplicate data counts')
+@click.option('--data_format', '-df', default='json', help='data format')
+@click.option('--time_range', '-tr', type=int, default=2, help='time range')
+@click.option('--time_unit', '-tu', default='minute', help='time unit')
+def run(execute_times, execute_duration, file_dir, file_numbers, data_counts, duplicate_data_count, data_format, time_range, time_unit):
+    execute_count = 0
+    while True:
+        generate_test_data(file_dir=file_dir+'_'+str(execute_count), file_numbers=file_numbers, data_counts=data_counts,
+                           duplicate_data_count=duplicate_data_count, data_format=data_format,
+                           time_range=time_range, time_unit=time_unit)
+        execute_count = execute_count+1
+        if execute_times >= 1 and execute_count >= execute_times:
+            break
+        time.sleep(execute_duration)
