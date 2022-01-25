@@ -3,7 +3,8 @@ from .function import *
 
 
 function_class_map = {
-    'splitby': SplitByFunction
+    'splitby': SplitByFunction,
+    'save': SaveFunction
 }
 
 def get_function_class(type: str, conf):

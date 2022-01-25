@@ -93,7 +93,7 @@ def cli():
 def run(execute_times, execute_duration, file_dir, file_numbers, data_counts, duplicate_data_count, data_format, time_range, time_unit):
     execute_count = 0
     while True:
-        generate_test_data(file_dir=file_dir+'_'+str(execute_count), file_numbers=file_numbers, data_counts=data_counts,
+        generate_test_data(file_dir=file_dir.strip()+'_'+str(execute_count)+'/', file_numbers=file_numbers, data_counts=data_counts,
                            duplicate_data_count=duplicate_data_count, data_format=data_format,
                            time_range=time_range, time_unit=time_unit)
         execute_count = execute_count+1

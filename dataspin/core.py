@@ -2,6 +2,7 @@
 import os
 import re
 from dataspin.providers import get_provider_class, get_provider
+from dataspin.providers.local import LocalStorageProvider
 from dataspin.utils.util import uuid_generator
 from dataspin.functions import get_function_class
 from multiprocessing import Process, Pool
@@ -31,6 +32,10 @@ class ObjectStorage:
     def name(self):
         return self._name
 
+    @property
+    def provider(self):
+        return self._provider
+
 
 class DataFunction:
     def __init__(self, conf):
@@ -49,8 +54,16 @@ class DataProcess:
         self.conf = conf
         self._name = conf.name
         self._source = conf.source
+        self._task_list = []
+        self._load()
         
-    
+    def _load(self):
+        for task in self.conf.processes:
+            function_type = task.function
+            function = get_function_class(function_type, task)
+            self._task_list.append(function)
+
+
     def run(self):
         pass
 
@@ -62,6 +75,10 @@ class DataProcess:
     def source(self):
         return self._source
 
+    @property
+    def task_list(self):
+        return self._task_list
+
 
 class SpinEngine:
     def __init__(self, conf):
@@ -71,7 +88,7 @@ class SpinEngine:
         self.storages = {}
         self.data_processes = {}
         self.load()
-        self.uuid = uuid_generator()
+        self.uuid = 'project_' + uuid_generator()
         self.temp_dir_path = os.path.join(os.getcwd(), self.uuid)
     
     def load(self):
@@ -83,26 +100,34 @@ class SpinEngine:
             self.storages[storage.name] = ObjectStorage(storage)
         
         for process_conf in conf.data_processes:
-            self.data_processes[process_conf.name] = DataProcess(process_conf)
+            data_process = DataProcess(process_conf)
+            self.data_processes[process_conf.name] = data_process
+            for task in data_process.task_list:
+                if task.type == 'save':
+                    task.set_storage(self.storages)
+
     
     def _run_process(self, process):
+        process_uuid = 'process_' + uuid_generator()
         source = self.streams.get(process.source)
         process_temp_dir_list = []
+        delete_temp_path_list = []
         if not source:
             return
-        source_temp_dir_path = os.path.join(self.temp_dir_path, 'source') + '/'
-        source.provider.get(storage_path=source_temp_dir_path)
-        process_temp_dir_list.append(source_temp_dir_path)
-        last_task_name = 'source'
-        for task in process.conf.processes:
-            function_type = task.function
-            function = get_function_class(function_type, task)
-            process_temp_dir_list = function.process(process_temp_dir_list, self.temp_dir_path, last_task_name)
-            last_task_name = function
+
+        for absolute_path_list in source.provider.stream():
+            data_list = LocalStorageProvider.read_path_list(absolute_path_list)
+            last_task_name = 'source'
+            for task in process.task_list:
+                process_temp_dir_list = task.process(delete_temp_path_list, os.path.join(self.temp_dir_path, process_uuid), last_task_name, process_temp_dir_list=process_temp_dir_list, data_list=data_list)
+                last_task_name = task.name
+
+            import time
+            time.sleep(5)
+            for path in delete_temp_path_list:
+                LocalStorageProvider.delete(path)
 
     def run(self):
-        # for process in self.data_processes:
-        #     self._run_process(process)
         for process_name, process in self.data_processes.items():
             self._run_process(process)
     

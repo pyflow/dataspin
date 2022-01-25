@@ -20,6 +20,6 @@ main.add_command(run)
 
 
 if __name__ == '__main__':
-    conf = ProjectConfig.load('/Users/yuze/Desktop/dataspin_test.json')
+    conf = ProjectConfig.load('/Users/yuze/Desktop/github_code/dataspin/examples/simple.json')
     engine = SpinEngine(conf)
     engine.run()

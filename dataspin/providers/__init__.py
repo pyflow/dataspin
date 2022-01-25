@@ -2,6 +2,8 @@
 from urllib.parse import urlparse, parse_qsl
 import os
 
+from dataspin.utils.util import parse_scheme
+
 
 def get_provider_class(url):
     parsed = urlparse(url)
@@ -21,30 +23,27 @@ def get_provider_class(url):
     
     raise Exception(f'No provider for scheme {scheme}')
 
+
 def get_provider(url, name=None):
     parsed = urlparse(url)
     params = dict(host=parsed.netloc, name=os.path.basename(parsed.path))
     for key, value in parse_qsl(parsed.query):
         if key not in params:
             params[key] = value
-    scheme = parsed.scheme
-    if scheme in ["s3", "sqs"]:
+    options, platform = parse_scheme(parsed.scheme)
+    if platform in ["s3", "sqs"]:
         from .aws import SQSStreamProvider, S3StorageProvider
-        if scheme == 's3':
+        if platform == 's3':
             return S3StorageProvider(parsed)
-        elif scheme == 'sqs':
+        elif platform == 'sqs':
             print(params)
             return SQSStreamProvider(**params)
-    elif scheme in ["local", "file"]:
+    elif platform in ["local", "file"]:
+        path = os.path.join(parsed.netloc, parsed.path[1:])
         from .local import LocalStreamProvider, LocalStorageProvider
-        if scheme == "local":
-            return LocalStreamProvider(parsed)
-        if scheme == 'file':
-            return LocalStorageProvider(parsed)
+        if platform == "local":
+            return LocalStreamProvider(path, options)
+        if platform == 'file':
+            return LocalStorageProvider(path, options)
     
-    raise Exception(f'No provider for scheme {scheme}')
-
-
-if __name__ == '__main__':
-    a = urlparse('sqs://bytepower-data-parquet-schedule-modelspin?region=cn-northwest-1&aws_access_key_id=xxx&aws_secret_access_key=xxx')
-    print(a)
+    raise Exception(f'No provider for platform {platform}')

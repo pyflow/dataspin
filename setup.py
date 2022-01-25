@@ -14,7 +14,7 @@ install_requires = [
     'pyRFC3339>=1.1',
     'basepy>=0.3.5',
     'redis==3.5.3',
-    'boto3==1.14.46',
+    'boto3>=1.19.12',
 ]
 # pip install -e '.[test]'
 test_requires = [

@@ -1,4 +1,5 @@
 
+import os
 import datetime
 import random
 from urllib.parse import urlparse
@@ -56,3 +57,21 @@ def uuid_generator(high='AC', random_digits=DEFAULT_RANDOM_DIGITS):
     uuid_int = (table_name << (DEFAULT_TIMESTAMP_LENGTH + random_digits)) | (time_stamp << random_digits) | rad_digits
     total_length = DEFAULT_HIGH_LENGTH + DEFAULT_TIMESTAMP_LENGTH + random_digits
     return uuid_convert_to_str(uuid_int, total_length)
+
+
+def parse_scheme(scheme):
+    settings = scheme.split('+')
+    if len(settings) > 1:
+        options = settings[0: -1]
+        platform = settings[-1]
+        return options, platform
+    else:
+        return None, settings[0]
+
+
+def get_path_file_list(path):
+    file_list = []
+    for home, dirs, files in os.walk(path):
+        for file in files:
+            file_list.append(os.path.join(home, file))
+    return file_list
