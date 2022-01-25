@@ -9,10 +9,12 @@ install_requires = [
     'PyYAML>=3.13',
     'pytz>=2020.1',
     'pyarrow>=1.0.1',
-    'click>=6.7',
+    'click==8.0.3',
     'pendulum>=2.1.2',
     'pyRFC3339>=1.1',
-    'basepy>=0.3.5'
+    'basepy>=0.3.5',
+    'redis==3.5.3',
+    'boto3==1.14.46',
 ]
 # pip install -e '.[test]'
 test_requires = [
@@ -42,6 +44,7 @@ setup(
     entry_points={
         'console_scripts': [
             'dataspin = dataspin.main:main',
+            'generate_test_data_cli = dataspin.script.generate_test_data:run',
         ],
     },
 )
