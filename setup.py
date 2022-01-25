@@ -44,7 +44,7 @@ setup(
     entry_points={
         'console_scripts': [
             'dataspin = dataspin.main:main',
-            'generate_test_data_cli = dataspin.script.generate_test_data:run',
+            'dataspin_testgen = dataspin.cli.test_data_generator:run',
         ],
     },
 )
