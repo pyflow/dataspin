@@ -6,13 +6,12 @@ from dataspin.utils.util import parse_url_params, parse_s3_url
 
 
 class SQSStreamProvider:
-<<<<<<< HEAD
     def __init__(self, name=None, access_key=None, secret_key=None, **kwargs):
         self.access_key = access_key
         self.secret_key = secret_key
         self.name = name
         self._sqs_client = boto3.client('sqs')
-=======
+
     MESSAGE_BATCH_SIZE = 1
 
     def __init__(self, key_pair):
@@ -56,23 +55,18 @@ class SQSStreamProvider:
                 #                                                                         key=item['Key']))
         except Exception:
             logger.error('Exception')
->>>>>>> develop
+
 
 
 class S3StorageProvider:
-<<<<<<< HEAD
     def __init__(self, path=None, access_key=None, secret_key=None, **kwargs):
         self.access_key = access_key
         self.secret_key = secret_key
+        self._s3_client = None
     
     def save(self, path, local_path):
         pass
-=======
-    def __init__(self, key_pair):
-        self._key_pair = key_pair
-        self._bucket = None
-        self._prefix = None
-        self._s3_client = None
+
 
     def _init_s3(self):
         params_dict = parse_url_params(self._key_pair.query)
@@ -99,7 +93,7 @@ class S3StorageProvider:
         #             self.get(storage_path, obj_key='s3://{bucket}/{key}'.format(bucket=bucket,
         #                                                                         key=item['Key']))
 
-    def save(self, source_path, destination_path=None):
-        with open(source_path, 'rb') as data:
-            self._s3_client.upload_fileobj(data, self._bucket, self._prefix)
->>>>>>> develop
+    # def save(self, source_path, destination_path=None):
+    #     with open(source_path, 'rb') as data:
+    #         self._s3_client.upload_fileobj(data, self._bucket, self._prefix)
+
