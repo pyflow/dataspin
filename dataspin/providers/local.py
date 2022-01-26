@@ -56,13 +56,14 @@ class LocalStorageProvider:
             with gzip.open(path, mode='rt', encoding='utf-8') as gdata:
                 for line in gdata:
                     data_list.append(json.loads(line))
-        if path.endswith('.csv'):
+        elif path.endswith('.csv'):
             with open(path, 'r') as f:
                 for line in f.readlines():
                     data_list.append(line)
-        # with open(path, 'rb') as f:
-        #     for line in f.readlines():
-        #         data_list.append(json.loads(line))
+        else:
+            with open(path, 'rb') as f:
+                for line in f.readlines():
+                    data_list.append(json.loads(line))
 
     # return data list
     @classmethod
