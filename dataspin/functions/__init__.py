@@ -4,7 +4,8 @@ from .function import *
 
 function_class_map = {
     'splitby': SplitByFunction,
-    'save': SaveFunction
+    'save': SaveFunction,
+    'pk_index': PkIndexFunction
 }
 
 def get_function_class(type: str, conf):
