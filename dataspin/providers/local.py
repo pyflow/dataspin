@@ -1,6 +1,7 @@
 import os
 import shutil
 import gzip
+import csv
 import filetype
 import json
 import re
@@ -55,6 +56,10 @@ class LocalStorageProvider:
             with gzip.open(path, mode='rt', encoding='utf-8') as gdata:
                 for line in gdata:
                     data_list.append(json.loads(line))
+        if path.endswith('.csv'):
+            with open(path, 'r') as f:
+                for line in f.readlines():
+                    data_list.append(line)
         # with open(path, 'rb') as f:
         #     for line in f.readlines():
         #         data_list.append(json.loads(line))
@@ -108,10 +113,17 @@ class LocalStorageProvider:
         if data_list:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, 'w') as f:
-                for data in data_list[: -1]:
-                    f.write(json.dumps(data))
-                    f.writelines('\n')
-                f.write(json.dumps(data_list[-1]))
+                if path.endswith('.csv'):
+                    for data in data_list[: -1]:
+                        f.write(data)
+                        f.writelines('\n')
+                    f.write(data_list[-1])
+                else:
+                    for data in data_list[: -1]:
+                        f.write(json.dumps(data))
+                        f.writelines('\n')
+                    f.write(json.dumps(data_list[-1]))
+
 
     @classmethod
     def delete(cls, path):

@@ -1,9 +1,9 @@
-
 import os
 from basepy.log import logger
 
 from dataspin.providers.local import LocalStorageProvider
 from dataspin.utils.util import uuid_generator
+
 
 class Function:
     def __init__(self, conf):
@@ -12,7 +12,7 @@ class Function:
         self._args = conf.args
         self._kv_args = conf.kv_args
 
-    def process(self, process_temp_dir_list, save_temp_dir, last_task_name):
+    def process(self, delete_temp_path_list, save_temp_dir, last_task_name, process_temp_dir_list=None, data_list=None):
         pass
 
     @property
@@ -22,7 +22,6 @@ class Function:
     @property
     def type(self):
         return self._type
-
 
 
 class SplitByFunction(Function):
@@ -39,7 +38,8 @@ class SplitByFunction(Function):
                 data_map = {}
                 self._split_data_list(temp_data_list, data_map)
                 for split_key, value_list in data_map.items():
-                    storage_path = os.path.join(save_temp_dir, self._name + '/' + split_key + '/result_' + uuid_generator())
+                    storage_path = os.path.join(save_temp_dir,
+                                                self._name + '/' + split_key + '/result_' + uuid_generator())
                     LocalStorageProvider.save(storage_path, data_list=value_list)
                     temp_dir_list.append(storage_path)
                     delete_temp_path_list.append(storage_path)
@@ -85,3 +85,39 @@ class SaveFunction(Function):
         if process_temp_dir_list:
             for process_temp_dir in process_temp_dir_list:
                 self._storage.provider.save(self._storage.provider.path, process_temp_dir=process_temp_dir)
+        if data_list:
+            self._storage.provider.save(self._storage.provider.path, data_list=data_list)
+        return temp_dir_list
+
+
+class PkIndexFunction(Function):
+    def __init__(self, conf):
+        super().__init__(conf)
+
+    def process(self, delete_temp_path_list, save_temp_dir, last_task_name, process_temp_dir_list=None, data_list=None):
+        pk_index_save_path = os.path.join(save_temp_dir, self._name)
+        pk_index_list = LocalStorageProvider.read(pk_index_save_path)
+        new_pk_index_list = []
+        if process_temp_dir_list:
+            for process_temp_dir in process_temp_dir_list:
+                temp_data_list = LocalStorageProvider.read(process_temp_dir)
+                self._get_pk_index(pk_index_list, new_pk_index_list, temp_data_list)
+            LocalStorageProvider.save(os.path.join(pk_index_save_path, 'pk_index.csv'), data_list=new_pk_index_list)
+        if data_list:
+            self._get_pk_index(pk_index_list, new_pk_index_list, data_list)
+            LocalStorageProvider.save(os.path.join(pk_index_save_path, 'pk_index.csv'), data_list=new_pk_index_list)
+        return process_temp_dir_list
+
+    def _get_pk_index(self, pk_index_list, new_pk_index_list, data_list):
+        pk = self._kv_args.get('key')
+        for data in data_list:
+            pk_value = []
+            for field in pk:
+                value = data.get(field, '')
+                pk_value.append(value)
+            pk_index = ','.join(pk_value)
+            if pk_index in pk_index_list:
+                continue
+            else:
+                pk_index_list.append(pk_index)
+                new_pk_index_list.append(pk_index)
