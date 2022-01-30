@@ -4,13 +4,13 @@
         {
             "name": "local_simple_data",
             "data_format": "dataspin",
-            "url": "watch+local://./tmp/source"
+            "url": "watch+local://./temp_file"
         }
     ],
     "storages": [
         {
             "name": "simple_target",
-            "url": "local://./tmp/target/{app_id}"
+            "url": "file://./tmp/target/{app_id}"
         }
     ],
     "data_processes":[
@@ -30,13 +30,14 @@
                     "function": "pk_index",
                     "args": [],
                     "kv_args": {
-                        "key": "app_id, event_id"
+                        "key": ["app_id", "event_id"]
                     }
                 },
                 {
                     "name": "save to target",
                     "function": "save",
-                    "args": {
+                    "args": [],
+                    "kv_args": {
                         "location": "simple_target"
                     }
                 }
