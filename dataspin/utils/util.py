@@ -1,9 +1,7 @@
-
 import os
 import datetime
 import random
 from urllib.parse import urlparse
-
 
 b32alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 
@@ -21,6 +19,7 @@ DEFAULT_HIGH_LENGTH = 10
 DEFAULT_TIMESTAMP_LENGTH = 40
 
 B32_WORD_LENGTH = 5
+
 
 def parse_url_params(params: str):
     result = {}
@@ -48,6 +47,7 @@ def uuid_convert_to_str(uuid, total_digits=DEFAULT_UUID_LENGTH):
 
     res.reverse()
     return ''.join(res)
+
 
 def uuid_generator(high='AC', random_digits=DEFAULT_RANDOM_DIGITS):
     global b32alphabet_dict
