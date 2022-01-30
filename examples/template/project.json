@@ -13,6 +13,16 @@
             "url": "s3://xxx/{app_id}/"
         }
     ],
+    "tables":[
+        {
+            "name": "tableName",
+            "storage": "location of storage",
+            "storages": [],
+            "schema": {
+
+            }
+        }
+    ],
     "pk_caches": [
         {
             "name": "",
@@ -25,7 +35,7 @@
         {
             "url": "/xxx/xxx",
             "default_action": "save_to_queue",
-            "schema": {}
+            "accept":["tableName"]
         }
     ],
     "data_processes":[
