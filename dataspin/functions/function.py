@@ -14,8 +14,10 @@ class Function:
         self._kv_args = conf.kv_args
 
 
+    def process(self, data_file=None):
+        pass
 
-    def process(self, delete_temp_path_list, save_temp_dir, last_task_name, process_temp_dir_list=None, data_list=None):
+    def process_mutli(self, data_files = []):
         pass
 
     @property

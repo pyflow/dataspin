@@ -11,28 +11,40 @@ class LocalStreamProvider:
         self.polling_flag = False
         self.processed_file_list = []
         self.processing_file_list = []
+        self.waiting_file_list = []
         self._load(path, options)
 
     def _load(self, path, options):
         self.path = path
-        if options:
-            for option in options:
-                if option == 'watch':
-                    self.polling_flag = True
+        if (not os.path.exists(self.path)) or (not os.path.isdir(self.path)):
+            logger.warning('read non-exists file path')
+        watch = options.get('watch', False)
+        self.polling_flag = watch
 
-    def stream(self):
-        while True:
-            if (not os.path.exists(self.path)) or (not os.path.isdir(self.path)):
-                logger.warning('read non-exists file path')
-                self.processing_file_list = []
+    def _scan(self):
+        for file_path in get_path_file_list(self.path):
+            if file_path in self.processed_file_list:
+                continue
+            if file_path in self.processing_file_list:
+                continue
+            if file_path in self.waiting_file_list:
+                continue
             else:
-                for absolute_path in get_path_file_list(self.path):
-                    if absolute_path in self.processed_file_list:
-                        continue
-                    self.processing_file_list.append(absolute_path)
-            yield self.processing_file_list
-            self.processed_file_list.extend(self.processing_file_list)
-            self.processing_file_list.clear()
+                self.waiting_file_list.append(file_path)
+    
+    def get(self, block=True, timeout=None):
+        file_path = self.waiting_file_list.pop(0)
+        if file_path:
+            self.processing_file_list.append(file_path)
+            return file_path
+        else:
+            return None
+    
+    def task_done(self, file_path):
+        if file_path in self.processing_file_list:
+            self.processing_file_list.remove(file_path)
+            self.processed_file_list.append(file_path)
+                
 
 
 class LocalStorageProvider:

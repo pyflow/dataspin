@@ -22,7 +22,19 @@ class DataStream:
     @property
     def provider(self):
         return self._provider
+    
+    def get(self, context, block=True, timeout=None):
+        file_path = self.provider.get(block=block, timeout=timeout)
+        if file_path:
+            context.data_files.append(DataFile(file_path=file_path))
+            return context
+        return None
 
+    def get_nowait(self):
+        return self.get(block=False)
+    
+    def task_done(self, context):
+        return self.provider.task_done(context.src_file)
 
 class ObjectStorage:
     def __init__(self, conf):
@@ -51,12 +63,51 @@ class DataFunction:
     def name(self):
         return self._name
 
+class DataFile:
+    def __init__(self, file_path, file_type="table"):
+        self.name = os.path.splitext(os.path.basename(file_path))[0]
+        self.file_path = file_path
+        self.file_type = file_type # table or index
+        self.format = "jsonl" # can be jsonl, parquet
+    
+
+class DataTaskContext:
+    def __init__(self, run_id, temp_dir, data_files = [],  **kwargs):
+        self.run_id = run_id
+        self.temp_dir = temp_dir
+        self.data_files = data_files
+        self.final_files = data_files
+        self.end_flag = False
+        self.files_history = []
+    
+    @property
+    def valid(self):
+        return len(self.final_files) > 0
+    
+    @property
+    def single_file(self):
+        return len(self.final_files) == 1
+    
+    @property
+    def multi_files(self):
+        return len(self.final_files) > 1
+    
+    @property
+    def eof(self):
+        return self.end_fl
+    
+    def set_data_files(self, data_files):
+        self.final_files = data_files
+        self.files_history.append(data_files)
+
+
 
 class DataProcess:
-    def __init__(self, conf):
+    def __init__(self, conf, engine):
         self.conf = conf
         self._name = conf.name
         self._source = conf.source
+        self.engine = engine
         self._task_list = []
         self._load()
 
@@ -67,7 +118,29 @@ class DataProcess:
             self._task_list.append(function)
 
     def run(self):
-        pass
+        run_id = uuid_generator('PR')
+        temp_dir = os.path.join(os.getcwd(), run_id)
+        
+        while True:
+            stream = self.engine.streams.get(self._source)
+            context = DataTaskContext(run_id, temp_dir)
+            stream.get(context)
+            if context.eof:
+                return
+            for task in self.task_list:
+                new_data_files = []
+                if context.single_file:
+                    new_data_file = task.process(context.final_files[0])
+                    new_data_files.append(new_data_file)
+                elif context.multi_files:
+                    if hasattr(task, 'process_multi'):
+                        new_data_files = task.process_multi(context.final_files)
+                    else:
+                        for data_file in context.final_files:
+                            new_data_files.append(task.process(data_file))
+                context.set_final_files(new_data_files)
+            stream.task_done(context)
+
 
     @property
     def name(self):
@@ -143,7 +216,7 @@ class SpinEngine:
             self.storages[storage.name] = ObjectStorage(storage)
 
         for process_conf in conf.data_processes:
-            data_process = DataProcess(process_conf)
+            data_process = DataProcess(process_conf, self)
             self.data_processes[process_conf.name] = data_process
             for task in data_process.task_list:
                 if task.type == 'save':

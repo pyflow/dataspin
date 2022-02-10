@@ -13,14 +13,13 @@
             "url": "s3://xxx/{app_id}/"
         }
     ],
-    "tables":[
+    "dataviews":[
         {
-            "name": "tableName",
-            "storage": "location of storage",
-            "storages": [],
-            "schema": {
-
-            }
+            "table-name": "s3_test_parquet",
+            "table-file-format": "parquet",
+            "table-storage-type": "s3",
+            "table-file-location": "bytepower-server-data/presto-test-data/origin-data/",
+            "fields": []
         }
     ],
     "pk_caches": [
