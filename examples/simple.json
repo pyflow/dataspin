@@ -1,16 +1,19 @@
 
 {
+    "dataspin": {
+        "working_dir": "./tmp/working"
+    },
     "streams" : [
         {
             "name": "local_simple_data",
             "data_format": "dataspin",
-            "url": "watch+local://./temp_file"
+            "url": "watch+local://./tmp/source"
         }
     ],
     "storages": [
         {
             "name": "simple_target",
-            "url": "file://./tmp/target/{app_id}"
+            "url": "file://./tmp/target/"
         }
     ],
     "data_processes":[
@@ -22,22 +25,21 @@
                 {
                     "name":"split by app_id",
                     "function": "splitby",
-                    "args":   ["app_id"],
-                    "kv_args": {}
+                    "args": {
+                        "key": ["app_id"]
+                    }
                 },
                 {
                     "name": "build primary key index",
                     "function": "pk_index",
-                    "args": [],
-                    "kv_args": {
+                    "args": {
                         "key": ["app_id", "event_id"]
                     }
                 },
                 {
                     "name": "save to target",
                     "function": "save",
-                    "args": [],
-                    "kv_args": {
+                    "args": {
                         "location": "simple_target"
                     }
                 }

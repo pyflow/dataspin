@@ -1,136 +1,69 @@
 import os
+from tokenize import group
 
 from basepy.log import logger
 
-from dataspin.utils.util import uuid_generator
-from dataspin.utils import file_operator
+from dataspin.utils.common import uuid_generator
+from dataspin.utils.file import DataFileReader
+from boltons.fileutils import AtomicSaver
 
+
+class FunctionMultiMixin:
+    def process_mutli(self, data_files, context):
+        return [self.process(data_file, context) for data_file in data_files]
 
 class Function:
-    def __init__(self, conf):
-        self._name = conf.name.replace(' ', '_')
-        self._type = conf.function
-        self._args = conf.args
-        self._kv_args = conf.kv_args
+    function_name = 'pass'
 
+    def __init__(self, args):
+        self.args = args
 
-    def process(self, data_file=None):
-        pass
-
-    def process_mutli(self, data_files = []):
+    def process(self, data_file, context):
         pass
 
     @property
     def name(self):
-        return self._name
-
-    @property
-    def type(self):
-        return self._type
+        return self.function_name
 
 
 class SplitByFunction(Function):
-    def __init__(self, conf):
-        super().__init__(conf)
-
-    def process(self, delete_temp_path_list, save_temp_dir, key, process_temp_dir_list=None, data_list=None):
-        path_dict = {}
-        if process_temp_dir_list:
-            for process_temp_dir in process_temp_dir_list:
-                temp_data_list = file_operator.read(process_temp_dir)
-                if len(self._args) < 1:
-                    return {'default': temp_data_list}
-                data_map = {}
-                self._split_data_list(temp_data_list, data_map)
-                for split_key, value_list in data_map.items():
-                    storage_path = os.path.join(save_temp_dir,
-                                                self._name + '/' + split_key + '/result_' + uuid_generator())
-                    file_operator.save(storage_path, data_list=value_list)
-                    if split_key in path_dict:
-                        path_dict[split_key].append(storage_path)
-                    else:
-                        path_dict[split_key] = [storage_path]
-                    delete_temp_path_list.append(storage_path)
-        if data_list:
-            data_map = {}
-            self._split_data_list(data_list, data_map)
-            for split_key, value_list in data_map.items():
-                storage_path = os.path.join(save_temp_dir, self._name + '/' + split_key + '/result_' + uuid_generator())
-                file_operator.save(storage_path, data_list=value_list)
-                if split_key in path_dict:
-                    path_dict[split_key].append(storage_path)
-                else:
-                    path_dict[split_key] = [storage_path]
-                delete_temp_path_list.append(storage_path)
-        return 'path_list', path_dict
-
-    def _split_data_list(self, data_list, data_map):
-        for data in data_list:
-            split_value = []
-            for split_field in self._args:
-                split_value.append(data.get(split_field, ''))
-            split_key = '_'.join(split_value)
-            if split_key not in data_map:
-                data_map[split_key] = [data]
-            else:
-                data_map[split_key].append(data)
-
-
-class SaveFunction(Function):
-    def __init__(self, conf):
-        self._storage = None
-        super().__init__(conf)
-
-    def set_storage(self, storage_dict):
-        if 'location' not in self._kv_args:
-            return
-        storage_name = self._kv_args['location']
-        self._storage = storage_dict.get(storage_name, None)
-
-    def process(self, delete_temp_path_list, save_temp_dir, key, process_temp_dir_list=None, data_list=None):
-        if not self._storage:
-            logger.error('storage not exists')
-            return 'none', None
-        if process_temp_dir_list:
-            for process_temp_dir in process_temp_dir_list:
-                self._storage.provider.save_result(key, process_temp_dir=process_temp_dir)
-            return 'path_list', {key: process_temp_dir_list}
-        if data_list:
-            self._storage.provider.save_result(key, data_list=data_list)
-            return 'data_list', {key: data_list}
-        return 'none', None
-
-
-class PkIndexFunction(Function):
-    def __init__(self, conf):
-        super().__init__(conf)
-
-    def process(self, delete_temp_path_list, save_temp_dir, key, process_temp_dir_list=None, data_list=None):
-        pk_index_save_path = os.path.join(save_temp_dir, self._name)
-        pk_index_list = file_operator.read(os.path.join(pk_index_save_path, 'pk_index.csv'))
-        new_pk_index_list = []
-        if process_temp_dir_list:
-            for process_temp_dir in process_temp_dir_list:
-                temp_data_list = file_operator.read(process_temp_dir)
-                self._get_pk_index(pk_index_list, new_pk_index_list, temp_data_list)
-            file_operator.save(os.path.join(pk_index_save_path, 'pk_index.csv'), data_list=new_pk_index_list)
-            return 'path_list', {key: process_temp_dir_list}
-        if data_list:
-            self._get_pk_index(pk_index_list, new_pk_index_list, data_list)
-            file_operator.save(os.path.join(pk_index_save_path, 'pk_index.csv'), data_list=new_pk_index_list)
-            return 'data_list', {key: data_list}
-        return 'none', None
-
-    def _get_pk_index(self, pk_index_list, new_pk_index_list, data_list):
-        pk = self._kv_args.get('key')
-        for data in data_list:
-            pk_value = []
-            for field in pk:
-                value = data.get(field, '')
-                pk_value.append(value)
-            pk_index = ','.join(pk_value)
-            if pk_index in pk_index_list:
+    function_name = 'splitby'
+    
+    def process(self, data_file, context):
+        def write_to_group(group_name, line):
+            if group_name not in group_file_savers:
+                dst_path = os.path.join(context.temp_dir, f'{data_file.name}-group-{group_name}{data_file.ext}')
+                file_saver = AtomicSaver(dst_path)
+                file_saver.setup()
+                group_file_savers[group_name] = file_saver
+            saver = group_file_savers[group_name]
+            saver.part_file.write(line.encode('utf-8'))
+            saver.part_file.write(b'\n')
+        data_files = []
+        group_file_savers = {}
+        split_key = self.args['key'][0]
+        file_reader = DataFileReader(data_file.file_path)
+        for (data, line) in file_reader.readlines():
+            group_name = data.get(split_key)
+            if not group_name:
+                # TODO: warning
                 continue
-            else:
-                pk_index_list.append(pk_index)
-                new_pk_index_list.append(pk_index)
+            write_to_group(group_name, line)
+
+        for saver in group_file_savers.values():
+            saver.__exit__(None, None, None)
+        return data_files
+
+
+class SaveFunction(FunctionMultiMixin, Function):
+    function_name = 'save'
+    
+    def process(self, data_file, context):
+        return data_file
+
+
+class PkIndexFunction(FunctionMultiMixin, Function):
+    function_name = 'pk_index'
+
+    def process(self, data_file, context):
+        return None

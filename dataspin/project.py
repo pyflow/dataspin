@@ -5,17 +5,21 @@ from typing import List, Optional
 from basepy.log import logger
 
 @dataclass
+class DataSpinConfig:
+    working_dir: Optional[str] = None
+
+@dataclass
 class StreamConfig:
     name: str
     url: str
     data_format: Optional[str] = "dataspin"
-    kv_args: Optional[dict] = field(default_factory=dict)
+    args: Optional[dict] = field(default_factory=dict)
 
 @dataclass
 class StorageConfig:
     name: str
     url: str
-    kv_args: Optional[dict] = field(default_factory=dict)
+    args: Optional[dict] = field(default_factory=dict)
 
 @dataclass
 class PrimaryKeyCacheConfig:
@@ -34,8 +38,7 @@ class WebhookConfig:
 class ProcessFunctionConfig:
     name: str
     function: str
-    args: Optional[List[str]] = field(default_factory=list)
-    kv_args: Optional[dict] = field(default_factory=dict)
+    args: Optional[dict] = field(default_factory=dict)
 
 @dataclass
 class DataProcessConfig:
@@ -46,6 +49,7 @@ class DataProcessConfig:
 
 @dataclass
 class ProjectConfig:
+    dataspin: DataSpinConfig = field(default_factory=DataSpinConfig)
     streams: Optional[List[StreamConfig]] = field(default_factory=list)
     storages: Optional[List[StorageConfig]] = field(default_factory=list)
     pk_caches: Optional[List[PrimaryKeyCacheConfig]] = field(default_factory=list)

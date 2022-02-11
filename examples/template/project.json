@@ -46,28 +46,27 @@
                 {
                     "name":"",
                     "function": "splitby",
-                    "args":   ["app_id"],
-                    "kv_args": {}
+                    "args": {
+                        "key": ["app_id"]
+                    }
                 },
                 {
                     "name": "",
                     "function": "deduplicate",
-                    "kv_args": {
+                    "args": {
                         "pk_cache": "cache_cluster_name"
                     }
                 },
                 {
                     "name": "",
                     "function": "pk_index",
-                    "args": [],
-                    "kv_args": {
+                    "args": {
                         "key": "app_id, event_id"
                     }
                 },
                 {
                     "name": "",
-                    "function": "save",
-                    "args": []
+                    "function": "save"
                 }
             ]
         },
@@ -81,15 +80,14 @@
                 {
                     "name": "",
                     "function": "merge_file",
-                    "args": [],
-                    "kv_args": {
+                    "args": {
                         "format": "parquet"
                     }
                 },
                 {
                     "name": "",
                     "function": "deduplicate",
-                    "kv_args": {
+                    "args": {
                         "pk_index": "pk",
                         "duration": "3h"
                     }
@@ -97,16 +95,14 @@
                 {
                     "name": "pk",
                     "function": "pk_index",
-                    "args": [],
-                    "kv_args": {
+                    "args": {
                         "key": "app_id, event_id"
                     }
                 },
                 {
                     "name": "",
                     "function": "save",
-                    "args": [],
-                    "kv_args": {
+                    "args": {
                         "path": "s3://"
                     }
                 }

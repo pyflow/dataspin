@@ -1,8 +1,9 @@
 import os
+import shutil
 from basepy.log import logger
+from boltons.fileutils import atomic_save
 
-from dataspin.utils.util import get_path_file_list
-from dataspin.utils import file_operator
+from dataspin.utils.common import scantree
 
 
 class LocalStreamProvider:
@@ -18,11 +19,12 @@ class LocalStreamProvider:
         self.path = path
         if (not os.path.exists(self.path)) or (not os.path.isdir(self.path)):
             logger.warning('read non-exists file path')
-        watch = options.get('watch', False)
+        watch = 'watch' in options
         self.polling_flag = watch
 
     def _scan(self):
-        for file_path in get_path_file_list(self.path):
+        for file_path in scantree(self.path):
+            #logger.debug('scaned file', file=file_path)
             if file_path in self.processed_file_list:
                 continue
             if file_path in self.processing_file_list:
@@ -30,9 +32,13 @@ class LocalStreamProvider:
             if file_path in self.waiting_file_list:
                 continue
             else:
+                #logger.debug('adding file to waiting list', file=file_path)
                 self.waiting_file_list.append(file_path)
     
     def get(self, block=True, timeout=None):
+        self._scan()
+        if len(self.waiting_file_list) < 1:
+            return None
         file_path = self.waiting_file_list.pop(0)
         if file_path:
             self.processing_file_list.append(file_path)
@@ -57,5 +63,14 @@ class LocalStorageProvider:
     def path(self):
         return self._path
 
-    def save_result(self, key, process_temp_dir=None, data_list=None):
-        file_operator.save(self._path, key, process_temp_dir, data_list)
+    def save(self, key, local_file):
+        save_path = os.path.join(self._path, key)
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        shutil.copy(local_file, save_path)
+    
+    def save_data(self, key, lines):
+        save_path = os.path.join(self._path, key)
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        with atomic_save(save_path, text_mode=False) as fo:
+            for line in lines:
+                _ = fo.write(line.encode('utf-8'))

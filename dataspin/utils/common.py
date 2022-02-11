@@ -69,9 +69,10 @@ def parse_scheme(scheme):
         return None, settings[0]
 
 
-def get_path_file_list(path):
-    file_list = []
-    for home, dirs, files in os.walk(path):
-        for file in files:
-            file_list.append(os.path.join(home, file))
-    return file_list
+def scantree(path):
+    """Recursively yield DirEntry objects for given directory."""
+    for entry in os.scandir(path):
+        if entry.is_dir(follow_symlinks=False):
+            yield from scantree(entry.path)  # see below for Python 2.x
+        else:
+            yield entry.path

@@ -8,6 +8,6 @@ function_class_map = {
     'pk_index': PkIndexFunction
 }
 
-def get_function_class(type: str, conf):
-    function_class = function_class_map.get(type, Function)
-    return function_class(conf)
+def creat_function_with(name: str, args):
+    function_class = function_class_map.get(name, Function)
+    return function_class(args)

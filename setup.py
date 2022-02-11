@@ -13,8 +13,9 @@ install_requires = [
     'pendulum>=2.1.2',
     'pyRFC3339>=1.1',
     'basepy>=0.3.5',
-    'redis==3.5.3',
+    'redis>=3.5.3',
     'boto3>=1.19.12',
+    'dataclass_factory'
 ]
 # pip install -e '.[test]'
 test_requires = [

@@ -2,7 +2,7 @@
 from urllib.parse import urlparse, parse_qsl
 import os
 
-from dataspin.utils.util import parse_scheme
+from dataspin.utils.common import parse_scheme
 
 
 def get_provider_class(url):
