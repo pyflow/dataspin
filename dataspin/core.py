@@ -53,6 +53,11 @@ class ObjectStorage:
     def provider(self):
         return self._provider
 
+    def save(self, key, local_file):
+        self.provider.save(key, local_file)
+    
+    def save_data(self, key, lines):
+        self.provider.save_data(key, lines)
 
 class DataFunction:
     def __init__(self, name, args):
@@ -116,6 +121,7 @@ class DataTaskContext:
         self.final_files = data_files
 
     def set_data_files(self, data_files):
+        logger.debug('set data files,', data_files = data_files)
         self.final_files = data_files
         self.files_history.append(data_files)
     
@@ -146,30 +152,39 @@ class DataProcess:
             self._task_list.append(function)
 
     def run(self):
+        def append_or_extend(datafiles, newfile):
+            if not newfile:
+                return
+            if isinstance(newfile, (list, tuple)):
+                datafiles.extend(newfile)
+            else:
+                datafiles.append(newfile)
+
         run_id = uuid_generator('PR')
         temp_dir = os.path.join(self.engine.working_dir, run_id)
         os.makedirs(temp_dir, exist_ok=True)
         stream = self.engine.streams.get(self._source)
 
         while True:
-            context = DataTaskContext(run_id, temp_dir, data_files=[], engine=self)
+            context = DataTaskContext(run_id, temp_dir, data_files=[], engine=self.engine)
             if stream.get(context) == None:
                 break
             if context.eof:
                 break
             logger.debug('handle task of source.', source_file=context.data_file.basename)
             for task in self.task_list:
-                logger.debug('handle task', task=task, data_file=context.final_file)
+                logger.debug('handle task', task_name=task.name, task=task, data_file=context.final_file)
                 new_data_files = []
                 if context.single_file:
                     new_data_file = task.process(context.final_file, context)
-                    new_data_files.append(new_data_file)
+                    append_or_extend(new_data_files, new_data_file)
                 elif context.multi_files:
                     if hasattr(task, 'process_multi'):
                         new_data_files = task.process_multi(context.final_files)
                     else:
                         for data_file in context.final_files:
-                            new_data_files.append(task.process(data_file, context))
+                            new_data_file = task.process(data_file, context)
+                            append_or_extend(new_data_files, new_data_file)
                 context.set_data_files(new_data_files)
             stream.task_done(context)
 

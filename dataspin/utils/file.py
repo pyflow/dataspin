@@ -12,8 +12,8 @@ class DataFileReader:
         if self.ext == '.gz':
             with gzip.open(self.file_path, mode='rt', encoding='utf-8') as gdata:
                 for line in gdata:
-                    yield (json.loads(line), line)
+                    yield (json.loads(line), line.strip())
         else:
             with open(self.file_path, 'rt') as f:
                 for line in f.readlines():
-                    yield (json.loads(line), line)
+                    yield (json.loads(line), line.strip())
