@@ -2,6 +2,8 @@ import os
 import datetime
 import random
 from urllib.parse import urlparse
+import json
+from typing import Any
 
 b32alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 
@@ -76,3 +78,24 @@ def scantree(path):
             yield from scantree(entry.path)  # see below for Python 2.x
         else:
             yield entry.path
+
+def marshal(d: Any) -> str:
+    """
+    Marshal to JSON.
+    Args:
+        d: Any object or value.
+    Returns:
+        A string containing the JSON-serialized form.
+    """
+    return json.dumps(d, allow_nan=False, separators=(',', ':'))
+
+
+def unmarshal(s: str) -> Any:
+    """
+    Unmarshal a JSON string.
+    Args:
+        s: A string containing JSON-serialized data.
+    Returns:
+        The deserialized object or value.
+    """
+    return json.loads(s)

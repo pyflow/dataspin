@@ -1,0 +1,38 @@
+
+{
+    "dataspin": {
+        "working_dir": "./tmp/working"
+    },
+    "sources": [
+        {
+            "name": "simple_source",
+            "source_url": "pyclass::dataspin.playhouse.simple::SimpleSource"
+        }
+    ],
+    "storages": [
+        {
+            "name": "simple_target",
+            "url": "file://./tmp/target/"
+        }
+    ],
+    "data_processes":[
+        {
+            "name": "fetch simple and save",
+            "description": "",
+            "source": "simple_source",
+            "source_args": {
+                "datasets": ["dataset_a", "dataset_b"],
+                "start_date": "2021-12-12"
+            },
+            "processes":[
+                {
+                    "name": "save to target",
+                    "function": "save",
+                    "args": {
+                        "location": "simple_target"
+                    }
+                }
+            ]
+        }
+    ]
+}

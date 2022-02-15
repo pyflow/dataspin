@@ -3,13 +3,64 @@ import re
 from typing import Optional
 import time
 import tempfile
+import importlib
+import json
+from boltons.fileutils import atomic_save
 
 from dataspin.providers import get_provider_class, get_provider
-from dataspin.utils.common import uuid_generator
+from dataspin.utils.common import uuid_generator, marshal
 from dataspin.functions import creat_function_with
 from multiprocessing import Process, Pool
 from basepy.log import logger
 
+
+class DataSource:
+    @classmethod
+    def load(cls, conf):
+        name = conf.name
+        source_type = conf.source_url.split("::")
+        args = conf.args
+        if source_type[0] == 'pyclass':
+            return PyClassSource(name, source_type[1], source_type[2], args)
+        else:
+            return cls(name=name)
+
+    def __init__(self, name, **kwargs):
+        self.name = name
+        self.kwargs = kwargs
+    
+    def fetch(self, fetch_args, context):
+        datasets = self._do_fetch(fetch_args)
+        data_files = []
+        for key in datasets.keys():
+            file_path  = os.path.join(context.temp_dir, f"source_{key}.jsonl")
+            with atomic_save(file_path, text_mode=False) as fo:
+                for data in datasets[key]:
+                    line = "{}\n".format(marshal(data))
+                    fo.write(line.encode('utf-8'))
+            data_files.append(context.create_data_file(file_path=file_path))
+        return DataFileStream(data_files=data_files)
+            
+
+
+class PyClassSource(DataSource):
+    def __init__(self, name, module, cls_name, args=None):
+        self.name = name
+        self.module = module
+        self.cls_name = cls_name
+        self.source_cls = None
+        self.args = args if args is not None else {}
+
+    def get_source_cls(self):
+        if self.source_cls is None:
+            module = importlib.import_module(self.module)
+            self.source_cls = getattr(module, self.cls_name)
+        return self.source_cls
+
+    def _do_fetch(self, fetch_args):
+        source_cls = self.get_source_cls()(**self.args)
+        return source_cls.fetch(**fetch_args)
+    
 
 class DataStream:
     def __init__(self, conf):
@@ -38,6 +89,33 @@ class DataStream:
     
     def task_done(self, context):
         return self.provider.task_done(context.data_file)
+
+class DataFileStream:
+    def __init__(self, data_files):
+        self._name = "data_file_stream"
+        self.data_files = data_files
+        self.processing_data_files = []
+    
+    @property
+    def name(self):
+        return self._name
+    
+    def get(self, context, block=True, timeout=None):
+        if not self.data_files:
+            return None
+        data_file = self.data_files.pop(0)
+        if data_file:
+            context.init_data_files([data_file])
+            return context
+        return None
+
+    def get_nowait(self):
+        return self.get(block=False)
+    
+    def task_done(self, context):
+        data_file = context.data_file
+        if data_file in self.processing_data_files:
+            self.processing_data_files.remove(data_file)
 
 class ObjectStorage:
     def __init__(self, conf):
@@ -141,6 +219,7 @@ class DataProcess:
         self.conf = conf
         self._name = conf.name
         self._source = conf.source
+        self._fetch_args = conf.fetch_args
         self.engine = engine
         self._task_list = []
         self._load()
@@ -163,7 +242,14 @@ class DataProcess:
         run_id = uuid_generator('PR')
         temp_dir = os.path.join(self.engine.working_dir, run_id)
         os.makedirs(temp_dir, exist_ok=True)
-        stream = self.engine.streams.get(self._source)
+        if self._source in self.engine.sources:
+            data_source = self.engine.sources.get(self._source)
+            context = DataTaskContext(run_id, temp_dir, data_files=[], engine=self.engine)
+            stream = data_source.fetch(self._fetch_args, context)
+        elif self._source in self.engine.streams:
+            stream = self.engine.streams.get(self._source)
+        else:
+            raise Exception(f'source {self._source} is not specified.')
 
         while True:
             context = DataTaskContext(run_id, temp_dir, data_files=[], engine=self.engine)
@@ -207,6 +293,7 @@ class SpinEngine:
         self.conf = conf
         # self.runner_pool = Pool(4)
         self.config = {}
+        self.sources = {}
         self.streams = {}
         self.storages = {}
         self.data_processes = {}
@@ -226,6 +313,9 @@ class SpinEngine:
         working_dir = os.path.abspath(self.config.working_dir)
         os.makedirs(working_dir, exist_ok=True)
         self.config.working_dir = working_dir
+        for source in conf.sources:
+            self.sources[source.name] = DataSource.load(source)
+
         for stream in conf.streams:
             self.streams[stream.name] = DataStream(stream)
 

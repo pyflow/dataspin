@@ -16,6 +16,13 @@ class StreamConfig:
     args: Optional[dict] = field(default_factory=dict)
 
 @dataclass
+class SourceConfig:
+    name: str
+    source_url: str
+    args: Optional[dict] = field(default_factory=dict)
+
+
+@dataclass
 class StorageConfig:
     name: str
     url: str
@@ -44,12 +51,14 @@ class ProcessFunctionConfig:
 class DataProcessConfig:
     name: str
     source: str
+    fetch_args: Optional[dict] = field(default_factory=dict)
     description: Optional[str] = ""
     processes: Optional[List[ProcessFunctionConfig]] = field(default_factory=list)
 
 @dataclass
 class ProjectConfig:
     dataspin: DataSpinConfig = field(default_factory=DataSpinConfig)
+    sources: Optional[List[SourceConfig]] = field(default_factory=list)
     streams: Optional[List[StreamConfig]] = field(default_factory=list)
     storages: Optional[List[StorageConfig]] = field(default_factory=list)
     pk_caches: Optional[List[PrimaryKeyCacheConfig]] = field(default_factory=list)
