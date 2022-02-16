@@ -10,7 +10,8 @@ import json
 
 
 class FunctionMultiMixin:
-    def process_mutli(self, data_files, context):
+
+    def process_multi(self, data_files, context):
         return [self.process(data_file, context) for data_file in data_files]
 
 class Function:
@@ -67,7 +68,7 @@ class SaveFunction(FunctionMultiMixin, Function):
         if not storage:
             raise Exception('No storage defined.')
         storage.save(data_file.basename, data_file.file_path)
-        return None
+        return data_file
 
 
 class PkIndexFunction(FunctionMultiMixin, Function):
@@ -95,3 +96,10 @@ class PkIndexFunction(FunctionMultiMixin, Function):
         file_saver.__exit__(None, None, None)
         new_data_file = context.create_data_file(dst_path, file_type="index")
         return [data_file, new_data_file]
+
+
+class DeduplicateFunction(FunctionMultiMixin,Function):
+    function_name = 'deduplicate'
+
+    def process(self,data_file,context):
+        pass
