@@ -24,6 +24,9 @@
                 "datasets": ["dataset_a", "dataset_b"],
                 "start_date": "2021-12-12"
             },
+            "schedules":[
+                "every day at 8:00"
+            ],
             "processes":[
                 {
                     "name": "save to target",
