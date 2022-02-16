@@ -235,8 +235,7 @@ class DataProcess:
             if not newfile:
                 return
             if isinstance(newfile, (list, tuple)):
-                for f in newfile:
-                    append_or_extend(datafiles, f)
+                datafiles.extend(newfile)
             else:
                 datafiles.append(newfile)
 
@@ -267,7 +266,7 @@ class DataProcess:
                     append_or_extend(new_data_files, new_data_file)
                 elif context.multi_files:
                     if hasattr(task, 'process_multi'):
-                        new_data_file = task.process_multi(context.final_files,context)
+                        new_data_file = task.process_multi(context.final_files, context)
                         append_or_extend(new_data_files, new_data_file)
                     else:
                         for data_file in context.final_files:

@@ -12,8 +12,16 @@ import json
 class FunctionMultiMixin:
 
     def process_multi(self, data_files, context):
-        return [self.process(data_file, context) for data_file in data_files]
+        result = []
+        for data_file in data_files:
+            file = self.process(data_file,context)
+            if isinstance(file, (list, tuple)):
+                result.extend(file)
+                continue
+            result.append(file)
+        return result
 
+        
 class Function:
     function_name = 'pass'
 
