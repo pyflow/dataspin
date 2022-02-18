@@ -1,7 +1,7 @@
 import os
 import re
 from typing import Optional
-import time
+import datetime
 import tempfile
 import importlib
 import json
@@ -10,6 +10,7 @@ from boltons.fileutils import atomic_save
 from dataspin.providers import get_provider_class, get_provider
 from dataspin.utils.common import uuid_generator, marshal
 from dataspin.functions import creat_function_with
+from dataspin.meta import ContextMetaData, TaskMetaData, FileMetaData, factory
 from multiprocessing import Process, Pool
 from basepy.log import logger
 
@@ -155,10 +156,21 @@ class DataFile:
         self.file_path = file_path
         self.file_type = file_type # table or index
         self.file_format = "jsonl" # can be jsonl, parquet
+        self.generation_time = datetime.datetime.now()
     
     @property
     def basename(self):
         return '{}{}'.format(self.name, self.ext)
+
+    @property
+    def data(self):
+        return {'name': self.name,
+                'ext': self.ext,
+                'file_path': self.file_path,
+                'file_type': self.file_type,
+                'file_format': self.file_format,
+                'generation_time': str(self.generation_time)}
+
 
 class DataTaskContext:
     def __init__(self, run_id, temp_dir, data_files,  **kwargs):
@@ -169,6 +181,8 @@ class DataTaskContext:
         self.end_flag = False
         self.files_history = []
         self.engine = kwargs['engine']
+        self.task_order = 0
+        self.meta = ContextMetaData.load(run_id)
     
     @property
     def data_file(self):
@@ -197,6 +211,11 @@ class DataTaskContext:
     def init_data_files(self, data_files):
         self.data_files = data_files
         self.final_files = data_files
+        source_task_meta = TaskMetaData.load(function='source')
+        source_task_meta.success_flag = True
+        source_task_meta.input_files.extend([FileMetaData.load(data_file.data) for data_file in data_files])
+        source_task_meta.output_files.extend([FileMetaData.load(data_file.data) for data_file in data_files])
+        self.meta.task_meta.append(source_task_meta)
 
     def set_data_files(self, data_files):
         logger.debug('set data files,', data_files = data_files)
@@ -204,7 +223,7 @@ class DataTaskContext:
         self.files_history.append(data_files)
     
     def create_data_file(self, file_path, file_type="table", data_format="jsonl"):
-        datafile =  DataFile(file_path=file_path, file_type=file_type)
+        datafile = DataFile(file_path=file_path, file_type=file_type)
         datafile.data_format = data_format
         return datafile
     
@@ -213,6 +232,26 @@ class DataTaskContext:
 
     def get_stream(self, name):
         return self.engine.streams.get(name)
+
+    def create_task_meta(self, function, input_files=[]):
+        self.task_order += 1
+        task_meta = TaskMetaData.load(function=function)
+        task_meta.task_order = self.task_order
+        task_meta.input_files = [FileMetaData.load(data_file.data) for data_file in input_files]
+        self.meta.task_meta.append(task_meta)
+        return task_meta
+
+    def end(self):
+        self.end_flag = True
+        self.meta.end_time = datetime.datetime.now()
+        self.meta.success_flag = True
+        self.meta_save()
+
+    def meta_save(self):
+        serialized_meta = factory.dump(self.meta)
+        logger.debug(str(serialized_meta))
+        # TODO: write meta data line
+
 
 class DataProcess:
     def __init__(self, conf, engine):
@@ -252,7 +291,7 @@ class DataProcess:
             raise Exception(f'source {self._source} is not specified.')
 
         while True:
-            context = DataTaskContext(run_id, temp_dir, data_files=[], engine=self.engine)
+            context = DataTaskContext(run_id, temp_dir, [], engine=self.engine)
             if stream.get(context) == None:
                 break
             if context.eof:
@@ -260,6 +299,7 @@ class DataProcess:
             logger.debug('handle task of source.', source_file=context.data_file.basename)
             for task in self.task_list:
                 logger.debug('handle task', task_name=task.name, task=task, data_file=context.final_file)
+                task_meta = context.create_task_meta(task.name, context.final_files)
                 new_data_files = []
                 if context.single_file:
                     new_data_file = task.process(context.final_file, context)
@@ -273,7 +313,11 @@ class DataProcess:
                             new_data_file = task.process(data_file, context)
                             append_or_extend(new_data_files, new_data_file)
                 context.set_data_files(new_data_files)
+                task_meta.end_time = datetime.datetime.now()
+                task_meta.success_flag = True
+                task_meta.output_files = [FileMetaData.load(data_file.data) for data_file in new_data_files]
             stream.task_done(context)
+            context.end()
 
 
     @property
@@ -299,9 +343,9 @@ class SpinEngine:
         self.storages = {}
         self.data_processes = {}
         self.load()
-        self.uuid = 'project_' + uuid_generator()
+        self.uuid = 'project_' + uuid_generator('SE')
         self.temp_dir_path = os.path.join(os.getcwd(), self.uuid)
-    
+
     @property
     def working_dir(self):
         return self.config.working_dir
