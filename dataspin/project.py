@@ -54,6 +54,7 @@ class DataProcessConfig:
     fetch_args: Optional[dict] = field(default_factory=dict)
     description: Optional[str] = ""
     processes: Optional[List[ProcessFunctionConfig]] = field(default_factory=list)
+    # process_flow: Optional[dict] = field(default_factory=dict)
 
 @dataclass
 class ProjectConfig:

@@ -1,9 +1,12 @@
 import os
 import datetime
 import random
+import time
 from urllib.parse import urlparse
 import json
 from typing import Any
+
+import pendulum
 
 b32alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 
@@ -99,3 +102,74 @@ def unmarshal(s: str) -> Any:
         The deserialized object or value.
     """
     return json.loads(s)
+
+
+def convert_timestr(time_str) -> int:
+    """
+    convert time string to timestamp seconds
+    """
+    return int(pendulum.parse(time_str).timestamp())
+
+
+def parse_duration(duration:str)->tuple:
+    """
+    valid duration expr: "2d-now","3h-1h","40m-now","300s-10s"
+    return timestamp
+    """
+    start,end = duration.split('-')
+    start = start.strip()
+    end = end.strip()
+    now = int(time.time())
+    if end == 'now':
+        end = now
+    else:
+        end = now - parse_interval(end)
+    start = now - parse_interval(start)
+    if end <= start:
+        raise Exception('duration start should be earlier than end')
+    return start,end
+
+
+def parse_interval(interval:str)->int:
+    """
+    valid interval expr: "2d","3h","40m","300s"
+    return second timestamp
+    """
+    unit_dict = {'d':24*60*60,'h':60*60,'m':60,'s':1}
+    time_unit = interval[len(interval)-1]
+    time_unit_measure = unit_dict.get(time_unit)
+    if not time_unit_measure:
+        raise Exception('No support interval expr')
+    return time_unit_measure * int(interval.strip(time_unit))
+
+
+def flatten_dict(data: dict, root_key='', delimiter='.'):
+    result = {}
+    for k, v in data.items():
+        k = k.strip()
+        key = k if not root_key else root_key + delimiter + k
+        if type(v) in [dict] and len(v) != 0:
+            result.update(flatten_dict(v, key, delimiter))
+        else:
+            result[key] = v
+    return result
+
+
+def inflate_dict(flatten_dict, delimiter='.'):
+    """
+    flatten_dict:{'a.b.c':10,'a.c.d':'value','a.b.e.f':True}
+    return :{"a": {"b": {"c": 10, "e": {"f": true}}, "c": {"d": "value"}}}
+    """
+    result = {}
+    for k, v in flatten_dict.items():
+        k_list = k.split(delimiter)
+        if len(k_list) == 1:
+            result[k] = v
+        else:
+            tmp = result
+            for l in k_list[:-1]:
+                if l not in tmp:
+                    tmp[l] = {}
+                tmp = tmp[l]
+            tmp[k_list[-1]] = v
+    return result

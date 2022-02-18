@@ -6,6 +6,7 @@ import tempfile
 import importlib
 import json
 from boltons.fileutils import atomic_save
+from dataspin.metadata.pk_record import PKRecord, PKRecordSearch
 
 from dataspin.providers import get_provider_class, get_provider
 from dataspin.utils.common import uuid_generator, marshal
@@ -132,10 +133,10 @@ class ObjectStorage:
         return self._provider
 
     def save(self, key, local_file):
-        self.provider.save(key, local_file)
+        return self.provider.save(key, local_file)
     
     def save_data(self, key, lines):
-        self.provider.save_data(key, lines)
+        return self.provider.save_data(key, lines)
 
 class DataFunction:
     def __init__(self, name, args):
@@ -147,7 +148,7 @@ class DataFunction:
         return self._name
 
 class DataFile:
-    def __init__(self, file_path, file_type="table"):
+    def __init__(self, file_path, file_type="table",index_meta_info=None):
         self.name, self.ext = os.path.splitext(os.path.basename(file_path))
         if self.ext in ['.gz']:
             self.name, ext = os.path.splitext(self.name)
@@ -155,7 +156,11 @@ class DataFile:
         self.file_path = file_path
         self.file_type = file_type # table or index
         self.file_format = "jsonl" # can be jsonl, parquet
-    
+        self._index_meta_info = index_meta_info
+
+    @property
+    def index_meta_info(self):
+        return self._index_meta_info
     @property
     def basename(self):
         return '{}{}'.format(self.name, self.ext)
@@ -199,20 +204,27 @@ class DataTaskContext:
         self.final_files = data_files
 
     def set_data_files(self, data_files):
-        logger.debug('set data files,', data_files = data_files)
+        # logger.debug('set data files,', data_files = data_files)
         self.final_files = data_files
         self.files_history.append(data_files)
     
-    def create_data_file(self, file_path, file_type="table", data_format="jsonl"):
-        datafile =  DataFile(file_path=file_path, file_type=file_type)
+    def create_data_file(self, file_path, file_type="table", data_format="jsonl",index_meta_info=None):
+        datafile =  DataFile(file_path=file_path, file_type=file_type,index_meta_info=index_meta_info)
         datafile.data_format = data_format
         return datafile
     
+    def save_pk_metadata(self,index_meta_info):
+        PKRecord(**index_meta_info).save()
+
+    def search_pk_files(self,start_time,end_time):
+        return PKRecordSearch().search(start_time,end_time)
+
     def get_storage(self, name):
         return self.engine.storages.get(name)
 
     def get_stream(self, name):
         return self.engine.streams.get(name)
+
 
 class DataProcess:
     def __init__(self, conf, engine):
@@ -222,6 +234,8 @@ class DataProcess:
         self._fetch_args = conf.fetch_args
         self.engine = engine
         self._task_list = []
+        # self._process_flow = {}
+        # self._functions = {}
         self._load()
 
     def _load(self):
@@ -257,7 +271,6 @@ class DataProcess:
                 break
             if context.eof:
                 break
-            logger.debug('handle task of source.', source_file=context.data_file.basename)
             for task in self.task_list:
                 logger.debug('handle task', task_name=task.name, task=task, data_file=context.final_file)
                 new_data_files = []

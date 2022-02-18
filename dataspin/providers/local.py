@@ -67,6 +67,7 @@ class LocalStorageProvider:
         save_path = os.path.join(self._path, key)
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         shutil.copy(local_file, save_path)
+        return save_path
     
     def save_data(self, key, lines):
         save_path = os.path.join(self._path, key)
@@ -74,3 +75,4 @@ class LocalStorageProvider:
         with atomic_save(save_path, text_mode=False) as fo:
             for line in lines:
                 _ = fo.write(line.encode('utf-8'))
+        return save_path
