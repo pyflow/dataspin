@@ -14,14 +14,14 @@ class FunctionMultiMixin:
     def process_multi(self, data_files, context):
         result = []
         for data_file in data_files:
-            file = self.process(data_file,context)
+            file = self.process(data_file, context)
             if isinstance(file, (list, tuple)):
                 result.extend(file)
                 continue
             result.append(file)
         return result
 
-        
+
 class Function:
     function_name = 'pass'
 
@@ -38,7 +38,7 @@ class Function:
 
 class SplitByFunction(Function):
     function_name = 'splitby'
-    
+
     def process(self, data_file, context):
         def write_to_group(group_name, line):
             if group_name not in group_file_savers:
@@ -49,6 +49,7 @@ class SplitByFunction(Function):
             saver = group_file_savers[group_name]
             saver.part_file.write(line.encode('utf-8'))
             saver.part_file.write(b'\n')
+
         data_files = []
         group_file_savers = {}
         split_key = self.args['key'][0]
@@ -68,9 +69,9 @@ class SplitByFunction(Function):
 
 class SaveFunction(FunctionMultiMixin, Function):
     function_name = 'save'
-    
+
     def process(self, data_file, context):
-        logger.debug('save function process', data_file = data_file.file_path)
+        logger.debug('save function process', data_file=data_file.file_path)
         location = self.args.get('location')
         storage = context.get_storage(location)
         if not storage:
@@ -83,7 +84,7 @@ class PkIndexFunction(FunctionMultiMixin, Function):
     function_name = 'pk_index'
 
     def process(self, data_file, context):
-        logger.debug('index function process', data_file = data_file.file_path)
+        logger.debug('index function process', data_file=data_file.file_path)
         index_key = self.args['key']
         file_reader = DataFileReader(data_file.file_path)
         dst_path = os.path.join(context.temp_dir, f'{data_file.name}-pk-index.jsonl')
@@ -106,8 +107,66 @@ class PkIndexFunction(FunctionMultiMixin, Function):
         return [data_file, new_data_file]
 
 
-class DeduplicateFunction(FunctionMultiMixin,Function):
+class DeduplicateFunction(FunctionMultiMixin, Function):
     function_name = 'deduplicate'
 
-    def process(self,data_file,context):
+    def process(self, data_file, context):
         pass
+
+
+class MergeFunction(FunctionMultiMixin, Function):
+    function_name = 'merge'
+    default_file_size = 100000
+
+    def __init__(self, args):
+        super(MergeFunction, self).__init__(args)
+        self.file_size = self.args.get('output_file_lines', self.default_file_size)
+        self.match_pattern = self.args.get('match_pattern', None)
+
+    def process(self, data_file, context):
+        new_data_files = self.merge_group_file('default', [data_file], context)
+        return new_data_files
+
+    def process_multi(self, data_files, context):
+        merge_group = {}
+        result = []
+        if self.match_pattern:
+            # TODO: merge rule
+            pass
+        else:
+            merge_group['default'] = data_files
+
+        for merge_group_name, file_list in merge_group.items():
+            new_data_files = self.merge_group_file(merge_group_name, file_list, context)
+            result.extend(new_data_files)
+        return result
+
+    def merge_group_file(self, merge_group_name, file_list, context):
+        file_count = 0
+        count = 0
+        new_data_files = []
+        dst_path = os.path.join(context.temp_dir, f'merge-{merge_group_name}_{file_count}.jsonl')
+        file_saver = AtomicSaver(dst_path)
+        file_saver.setup()
+        for file in file_list:
+            file_reader = DataFileReader(file.file_path)
+            for (data, line) in file_reader.readlines():
+                file_saver.part_file.write(line.encode('utf-8'))
+                file_saver.part_file.write(b'\n')
+                if count >= self.file_size:
+                    file_count += 1
+                    count = 0
+                    file_saver.__exit__(None, None, None)
+                    new_data_files.append(context.create_data_file(file_saver.dest_path))
+                    next_dst_path = os.path.join(context.temp_dir, f'merge-{merge_group_name}_{file_count}.jsonl')
+                    file_saver = AtomicSaver(next_dst_path)
+                    file_saver.setup()
+                count += 1
+
+        if file_saver:
+            file_saver.__exit__(None, None, None)
+            new_data_files.append(context.create_data_file(file_saver.dest_path))
+        return new_data_files
+
+
+
