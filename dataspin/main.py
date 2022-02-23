@@ -14,11 +14,12 @@ def main():
 
 @click.command()
 @click.argument("project", type=click.Path(exists=True))
+@click.argument("recover", type=click.BOOL)
 @click.pass_context
-def run(ctx, project):
+def run(ctx, project, recover):
     conf = ProjectConfig.load(project)
     engine = SpinEngine(conf)
-    engine.run()
+    engine.run(recover=recover)
 
 
 main.add_command(run)

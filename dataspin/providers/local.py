@@ -37,6 +37,8 @@ class LocalStreamProvider:
     
     def get(self, block=True, timeout=None):
         self._scan()
+        if self.processing_file_list:
+            return self.processing_file_list[0]
         if len(self.waiting_file_list) < 1:
             return None
         file_path = self.waiting_file_list.pop(0)
@@ -50,7 +52,10 @@ class LocalStreamProvider:
         if file_path in self.processing_file_list:
             self.processing_file_list.remove(file_path)
             self.processed_file_list.append(file_path)
-                
+
+    def recover(self, processed_files, processing_files):
+        self.processed_file_list.extend(processed_files)
+        self.processing_file_list.extend(processing_files)
 
 
 class LocalStorageProvider:

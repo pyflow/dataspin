@@ -50,15 +50,20 @@ class TaskMetaData:
 @dataclass
 class ContextMetaData:
     run_id: str
+    temp_dir: str
     start_time: datetime
     end_time: datetime
     success_flag: bool
     task_meta: Optional[List[TaskMetaData]] = field(default_factory=list)
 
     @classmethod
-    def load(cls, run_id, start_time=datetime.now(), end_time=datetime.now(), success_flag=False):
-        data = {'run_id': run_id,
-                'start_time': str(start_time),
-                'end_time': str(end_time),
-                'success_flag': success_flag}
-        return factory.load(data, cls)
+    def load(cls, run_id=uuid_generator('FN'), temp_dir='', start_time=datetime.now(), end_time=datetime.now(), success_flag=False, meta_data=None):
+        if meta_data:
+            return factory.load(meta_data, cls)
+        else:
+            data = {'run_id': run_id,
+                    'temp_dir': temp_dir,
+                    'start_time': str(start_time),
+                    'end_time': str(end_time),
+                    'success_flag': success_flag}
+            return factory.load(data, cls)
