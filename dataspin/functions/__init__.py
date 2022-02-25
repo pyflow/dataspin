@@ -5,9 +5,7 @@ from .function import *
 function_class_map = {
     'splitby': SplitByFunction,
     'save': SaveFunction,
-    'pk_index': PkIndexFunction,
-    'deduplicate': DeduplicateFunction,
-    'flatten': FlattenFunction
+    'pk_index': PkIndexFunction
 }
 
 def creat_function_with(name: str, args):

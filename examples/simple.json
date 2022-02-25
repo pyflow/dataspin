@@ -7,21 +7,13 @@
         {
             "name": "local_simple_data",
             "data_format": "dataspin",
-            "url": "watch+local://./temp/"
+            "url": "watch+local://./tmp/source"
         }
     ],
     "storages": [
         {
             "name": "simple_target",
             "url": "file://./tmp/target/"
-        },
-        {
-            "name": "simple_target_1",
-            "url": "file://./tmp/target_1/"
-        },
-        {
-            "name": "index_target",
-            "url": "file://./tmp/index_target/"
         }
     ],
     "data_processes":[
@@ -41,21 +33,8 @@
                     "name": "build primary key index",
                     "function": "pk_index",
                     "args": {
-                        "key": ["app_id","event_id"],
-                        "time_key":"bp_timestamp"
+                        "key": ["app_id", "event_id"]
                     }
-                },
-                {
-                    "name": "deduplicate by event_id",
-                    "function": "deduplicate",
-                    "args": {
-                        "key": ["event_id"],
-                        "slide_window": "24h-now"
-                    }
-                },
-                {
-                    "name": "flatten json",
-                    "function": "flatten"
                 },
                 {
                     "name": "save to target",
@@ -63,35 +42,6 @@
                     "args": {
                         "location": "simple_target"
                     }
-                },
-                {
-                    "name": "save to target 1",
-                    "function": "save",
-                    "args": {
-                        "location": "simple_target_1"
-                    }
-                },
-                {
-                    "name": "save to index target",
-                    "function": "save",
-                    "args": {
-                        "location": "index_target"
-                    }
-                }
-            ],
-            "process_flow":[
-                {
-                    "split by app_id":
-                        [
-                            {
-                                "build primary key index":"save to index target"
-                            },
-                            {
-                                "deduplicate by event_id":{
-                                    "flatten json":["save to target","save to target 1"]
-                                }
-                            }
-                        ]
                 }
             ]
         }
