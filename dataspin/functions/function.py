@@ -1,11 +1,9 @@
 import os
-from tokenize import group
-
 from basepy.log import logger
 
-from dataspin.utils.common import uuid_generator
+from dataspin.utils import common
 from dataspin.utils.file import DataFileReader
-from boltons.fileutils import AtomicSaver
+from boltons.fileutils import AtomicSaver,atomic_save
 import json
 
 
@@ -106,8 +104,18 @@ class PkIndexFunction(FunctionMultiMixin, Function):
         return [data_file, new_data_file]
 
 
-class DeduplicateFunction(FunctionMultiMixin,Function):
-    function_name = 'deduplicate'
+class FlattenFunction(FunctionMultiMixin,Function):
+    function_name = 'flatten'
 
-    def process(self,data_file,context):
-        pass
+    def process(self, data_file, context):
+        if data_file.data_format !='jsonl':
+            raise Exception('Not supported file type')
+        if data_file.file_type == 'index':
+            return data_file
+        file_reader = DataFileReader(data_file.file_path)
+        dst_path = os.path.join(context.temp_dir, f'{data_file.name}-flatten.jsonl')
+        with atomic_save(dst_path) as f:
+            for data,line in file_reader.readlines():
+                f.write(json.dumps(common.flatten_dict(data)).encode('utf-8'))
+                f.write(b'\n')
+        return context.create_data_file(file_path = dst_path)
