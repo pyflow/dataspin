@@ -5,6 +5,8 @@ from urllib.parse import urlparse
 import json
 from typing import Any
 
+import pendulum
+
 b32alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 
 b32alphabet_dict = {}
@@ -99,3 +101,7 @@ def unmarshal(s: str) -> Any:
         The deserialized object or value.
     """
     return json.loads(s)
+
+
+def format_timestring(date_str) -> str:
+    return pendulum.parse(date_str).to_iso8601_string()

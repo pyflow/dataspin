@@ -8,7 +8,7 @@ import json
 from boltons.fileutils import atomic_save
 
 from dataspin.providers import get_provider_class, get_provider
-from dataspin.utils.common import uuid_generator, marshal
+from dataspin.utils.common import uuid_generator, marshal, format_timestring
 from dataspin.functions import creat_function_with
 from multiprocessing import Process, Pool
 from basepy.log import logger
@@ -28,19 +28,18 @@ class DataSource:
     def __init__(self, name, **kwargs):
         self.name = name
         self.kwargs = kwargs
-    
+
     def fetch(self, fetch_args, context):
         datasets = self._do_fetch(fetch_args)
         data_files = []
         for key in datasets.keys():
-            file_path  = os.path.join(context.temp_dir, f"source_{key}.jsonl")
+            file_path = os.path.join(context.temp_dir, f"source_{key}.jsonl")
             with atomic_save(file_path, text_mode=False) as fo:
                 for data in datasets[key]:
                     line = "{}\n".format(marshal(data))
                     fo.write(line.encode('utf-8'))
             data_files.append(context.create_data_file(file_path=file_path))
         return DataFileStream(data_files=data_files)
-            
 
 
 class PyClassSource(DataSource):
@@ -60,7 +59,7 @@ class PyClassSource(DataSource):
     def _do_fetch(self, fetch_args):
         source_cls = self.get_source_cls()(**self.args)
         return source_cls.fetch(**fetch_args)
-    
+
 
 class DataStream:
     def __init__(self, conf):
@@ -75,7 +74,7 @@ class DataStream:
     @property
     def provider(self):
         return self._provider
-    
+
     def get(self, context, block=True, timeout=None):
         file_path = self.provider.get(block=block, timeout=timeout)
         logger.debug('stream get function got', file_path=file_path)
@@ -86,20 +85,21 @@ class DataStream:
 
     def get_nowait(self):
         return self.get(block=False)
-    
+
     def task_done(self, context):
         return self.provider.task_done(context.data_file)
+
 
 class DataFileStream:
     def __init__(self, data_files):
         self._name = "data_file_stream"
         self.data_files = data_files
         self.processing_data_files = []
-    
+
     @property
     def name(self):
         return self._name
-    
+
     def get(self, context, block=True, timeout=None):
         if not self.data_files:
             return None
@@ -111,11 +111,12 @@ class DataFileStream:
 
     def get_nowait(self):
         return self.get(block=False)
-    
+
     def task_done(self, context):
         data_file = context.data_file
         if data_file in self.processing_data_files:
             self.processing_data_files.remove(data_file)
+
 
 class ObjectStorage:
     def __init__(self, conf):
@@ -133,9 +134,26 @@ class ObjectStorage:
 
     def save(self, key, local_file):
         self.provider.save(key, local_file)
-    
+
     def save_data(self, key, lines):
         self.provider.save_data(key, lines)
+
+
+class DataView:
+    field_type_mapping = {
+        'str': str,
+        'int': int,
+        'float': float,
+        'boolean': bool,
+        'date': format_timestring
+    }
+
+    def __init__(self, conf):
+        self.conf = conf
+        self._name = conf.name
+        self._table_format = conf.table_format
+        self.fields = {field.name: field for field in conf.fields}
+
 
 class DataFunction:
     def __init__(self, name, args):
@@ -146,6 +164,7 @@ class DataFunction:
     def name(self):
         return self._name
 
+
 class DataFile:
     def __init__(self, file_path, file_type="table"):
         self.name, self.ext = os.path.splitext(os.path.basename(file_path))
@@ -153,15 +172,16 @@ class DataFile:
             self.name, ext = os.path.splitext(self.name)
             self.ext = f'{ext}{self.ext}'
         self.file_path = file_path
-        self.file_type = file_type # table or index
-        self.file_format = "jsonl" # can be jsonl, parquet
-    
+        self.file_type = file_type  # table or index
+        self.file_format = "jsonl"  # can be jsonl, parquet
+
     @property
     def basename(self):
         return '{}{}'.format(self.name, self.ext)
 
+
 class DataTaskContext:
-    def __init__(self, run_id, temp_dir, data_files,  **kwargs):
+    def __init__(self, run_id, temp_dir, data_files, **kwargs):
         self.run_id = run_id
         self.temp_dir = temp_dir
         self.data_files = data_files
@@ -169,7 +189,7 @@ class DataTaskContext:
         self.end_flag = False
         self.files_history = []
         self.engine = kwargs['engine']
-    
+
     @property
     def data_file(self):
         return self.data_files[0] if len(self.data_files) > 0 else None
@@ -181,38 +201,42 @@ class DataTaskContext:
     @property
     def valid(self):
         return len(self.final_files) > 0
-    
+
     @property
     def single_file(self):
         return len(self.final_files) == 1
-    
+
     @property
     def multi_files(self):
         return len(self.final_files) > 1
-    
+
     @property
     def eof(self):
         return self.end_flag
-    
+
     def init_data_files(self, data_files):
         self.data_files = data_files
         self.final_files = data_files
 
     def set_data_files(self, data_files):
-        logger.debug('set data files,', data_files = data_files)
+        logger.debug('set data files,', data_files=data_files)
         self.final_files = data_files
         self.files_history.append(data_files)
-    
+
     def create_data_file(self, file_path, file_type="table", data_format="jsonl"):
-        datafile =  DataFile(file_path=file_path, file_type=file_type)
+        datafile = DataFile(file_path=file_path, file_type=file_type)
         datafile.data_format = data_format
         return datafile
-    
+
     def get_storage(self, name):
         return self.engine.storages.get(name)
 
     def get_stream(self, name):
         return self.engine.streams.get(name)
+
+    def get_data_view(self, name):
+        return self.engine.data_views.get(name)
+
 
 class DataProcess:
     def __init__(self, conf, engine):
@@ -275,7 +299,6 @@ class DataProcess:
                 context.set_data_files(new_data_files)
             stream.task_done(context)
 
-
     @property
     def name(self):
         return self._name
@@ -297,11 +320,12 @@ class SpinEngine:
         self.sources = {}
         self.streams = {}
         self.storages = {}
+        self.data_views = {}
         self.data_processes = {}
         self.load()
         self.uuid = 'project_' + uuid_generator()
         self.temp_dir_path = os.path.join(os.getcwd(), self.uuid)
-    
+
     @property
     def working_dir(self):
         return self.config.working_dir
@@ -323,6 +347,9 @@ class SpinEngine:
         for storage in conf.storages:
             self.storages[storage.name] = ObjectStorage(storage)
 
+        for data_view in conf.data_views:
+            self.data_views[data_view.name] = DataView(data_view)
+
         for process_conf in conf.data_processes:
             data_process = DataProcess(process_conf, self)
             self.data_processes[process_conf.name] = data_process
@@ -333,7 +360,7 @@ class SpinEngine:
 
     def run_process(self, process):
         process.run()
-        #self.runner_pool.apply_async(process.run)
+        # self.runner_pool.apply_async(process.run)
 
     def join(self):
         self.runner_pool.join()

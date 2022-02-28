@@ -16,6 +16,30 @@
             "url": "file://./tmp/target/"
         }
     ],
+    "data_views":[
+        {
+            "name": "table",
+            "table_format": "jsonl",
+            "fields": [
+                {
+                    "name": "app_id",
+                    "type": "string"
+                },
+                {
+                    "name": "event_name",
+                    "type": "string"
+                },
+                {
+                    "name": "event_id",
+                    "type": "string"
+                },
+                {
+                    "name": "bp_timestamp",
+                    "type": "date"
+                }
+            ]
+        }
+    ],
     "data_processes":[
         {
             "name": "split and build index",
@@ -40,7 +64,8 @@
                     "name": "save to target",
                     "function": "save",
                     "args": {
-                        "location": "simple_target"
+                        "location": "simple_target",
+                        "table_name": "table"
                     }
                 }
             ]
