@@ -102,7 +102,6 @@ def unmarshal(s: str) -> Any:
     """
     return json.loads(s)
 
-
 def format_timestring(date_str) -> str:
     return pendulum.parse(date_str).to_iso8601_string()
 
