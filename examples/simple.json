@@ -37,6 +37,10 @@
                     }
                 },
                 {
+                    "name": "flatten json",
+                    "function": "flatten"
+                },
+                {
                     "name": "save to target",
                     "function": "save",
                     "args": {
