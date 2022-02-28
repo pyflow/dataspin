@@ -102,6 +102,37 @@ def unmarshal(s: str) -> Any:
     """
     return json.loads(s)
 
-
 def format_timestring(date_str) -> str:
     return pendulum.parse(date_str).to_iso8601_string()
+
+
+def flatten_dict(data: dict, root_key='', delimiter='.'):
+    result = {}
+    for k, v in data.items():
+        k = k.strip()
+        key = k if not root_key else root_key + delimiter + k
+        if type(v) in [dict] and len(v) != 0:
+            result.update(flatten_dict(v, key, delimiter))
+        else:
+            result[key] = v
+    return result
+
+
+def inflate_dict(flatten_dict, delimiter='.'):
+    """
+    flatten_dict:{'a.b.c':10,'a.c.d':'value','a.b.e.f':True}
+    return :{"a": {"b": {"c": 10, "e": {"f": true}}, "c": {"d": "value"}}}
+    """
+    result = {}
+    for k, v in flatten_dict.items():
+        k_list = k.split(delimiter)
+        if len(k_list) == 1:
+            result[k] = v
+        else:
+            tmp = result
+            for l in k_list[:-1]:
+                if l not in tmp:
+                    tmp[l] = {}
+                tmp = tmp[l]
+            tmp[k_list[-1]] = v
+    return result
