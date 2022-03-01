@@ -38,29 +38,52 @@ class SplitByFunction(Function):
     function_name = 'splitby'
     
     def process(self, data_file, context):
-        def write_to_group(group_name, line):
-            if group_name not in group_file_savers:
+        def write_to_group(group_names, line):
+            if group_names not in group_file_savers:
+                group_name = '-'.join(group_names)
                 dst_path = os.path.join(context.temp_dir, f'{data_file.name}-group-{group_name}.jsonl')
                 file_saver = AtomicSaver(dst_path)
                 file_saver.setup()
-                group_file_savers[group_name] = file_saver
-            saver = group_file_savers[group_name]
+                group_file_savers[group_names] = file_saver
+            saver = group_file_savers[group_names]
             saver.part_file.write(line.encode('utf-8'))
             saver.part_file.write(b'\n')
         data_files = []
         group_file_savers = {}
-        split_key = self.args['key'][0]
+        split_keys = self.args['key']
+        tags = []
+        static_tags = {}
+        for tag_k,tag_v in self.args['tags'].items():
+            if tag_v == '&key':
+                tags.append(tag_k)
+            else:
+                static_tags[tag_k] = tag_v
+        for tag in tags:
+            if tag not in split_keys:
+                raise Exception('tag %s should be in split keys'%tag)
+
+        tags_with_group = {}
         file_reader = DataFileReader(data_file.file_path)
         for (data, line) in file_reader.readlines():
-            group_name = data.get(split_key)
-            if not group_name:
+            group_names = []
+            for split_key in split_keys:
+                group_name = data.get(split_key)
+                group_names.append(group_name)
+            group_names = tuple(group_names)
+            if not tags_with_group.get(group_names):
+                tags_with_group[group_names] = {}
+            for tag in tags:
+                tags_with_group[group_names][tag] = data.get(tag)          
+            if not group_names:
                 # TODO: warning
                 continue
-            write_to_group(group_name, line)
-
-        for saver in group_file_savers.values():
+            write_to_group(group_names, line)
+        for group_names,saver in group_file_savers.items():
             saver.__exit__(None, None, None)
-            data_files.append(context.create_data_file(file_path=saver.dest_path))
+            if tags_with_group[group_names] and static_tags:
+                tags_with_group[group_names].update(static_tags)
+            tags = tags_with_group[group_names] if tags_with_group[group_names] else None
+            data_files.append(context.create_data_file(file_path=saver.dest_path,tags=tags))
         return data_files
 
 
@@ -70,10 +93,14 @@ class SaveFunction(FunctionMultiMixin, Function):
     def process(self, data_file, context):
         logger.debug('save function process', data_file = data_file.file_path)
         location = self.args.get('location')
+        path_suffix = self.args.get('path_suffix')
+        if path_suffix:
+            path_suffix = path_suffix.format(**data_file.tags)
         storage = context.get_storage(location)
         if not storage:
             raise Exception('No storage defined.')
-        storage.save(data_file.basename, data_file.file_path)
+        key = path_suffix + os.path.sep + data_file.basename if path_suffix else data_file.basename
+        storage.save(key, data_file.file_path)
         return data_file
 
 
@@ -100,7 +127,7 @@ class PkIndexFunction(FunctionMultiMixin, Function):
                 file_saver.part_file.write(b'\n')
 
         file_saver.__exit__(None, None, None)
-        new_data_file = context.create_data_file(dst_path, file_type="index")
+        new_data_file = context.create_data_file(dst_path, file_type="index",tags= data_file.tags)
         return [data_file, new_data_file]
 
 
@@ -118,7 +145,7 @@ class FlattenFunction(FunctionMultiMixin,Function):
             for data,line in file_reader.readlines():
                 f.write(json.dumps(common.flatten_dict(data)).encode('utf-8'))
                 f.write(b'\n')
-        return context.create_data_file(file_path = dst_path)
+        return context.create_data_file(file_path = dst_path,tags = data_file.tags)
 
 
 class DeduplicateFunction(Function):
@@ -142,4 +169,4 @@ class DeduplicateFunction(Function):
                 pk_values.add(pk_value)
                 f.write(json.dumps(data).encode('utf-8'))
                 f.write(b'\n')
-        return data_file,context.create_data_file(file_path = dst_path)
+        return data_file,context.create_data_file(file_path = dst_path,tags = data_file.tags)
