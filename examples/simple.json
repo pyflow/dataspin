@@ -16,12 +16,43 @@
             "url": "file://./tmp/target/"
         }
     ],
+    "data_views":[
+        {
+            "name": "table",
+            "table_format": "jsonl",
+            "fields": [
+                {
+                    "name": "app_id",
+                    "type": "string"
+                },
+                {
+                    "name": "event_name",
+                    "type": "string"
+                },
+                {
+                    "name": "event_id",
+                    "type": "string"
+                },
+                {
+                    "name": "bp_timestamp",
+                    "type": "date"
+                }
+            ]
+        }
+    ],
     "data_processes":[
         {
             "name": "split and build index",
             "description": "",
             "source": "local_simple_data",
             "processes":[
+                {
+                    "name":"format by data_view",
+                    "function": "format",
+                    "args": {
+                        "table_name": "table"
+                    }
+                },
                 {
                     "name":"split by app_id",
                     "function": "splitby",
@@ -53,7 +84,8 @@
                     "function": "save",
                     "args": {
                         "location": "simple_target",
-                        "path_suffix": "{service}/app_id={app_id}/platform={platform}"        
+                        "path_suffix": "{service}/app_id={app_id}/platform={platform}",        
+                        "table_name": "table"
                     }
                 }
             ]

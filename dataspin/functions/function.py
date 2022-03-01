@@ -12,14 +12,14 @@ class FunctionMultiMixin:
     def process_multi(self, data_files, context):
         result = []
         for data_file in data_files:
-            file = self.process(data_file,context)
+            file = self.process(data_file, context)
             if isinstance(file, (list, tuple)):
                 result.extend(file)
                 continue
             result.append(file)
         return result
 
-        
+
 class Function:
     function_name = 'pass'
 
@@ -36,7 +36,7 @@ class Function:
 
 class SplitByFunction(Function):
     function_name = 'splitby'
-    
+
     def process(self, data_file, context):
         def write_to_group(group_names, line):
             if group_names not in group_file_savers:
@@ -48,6 +48,7 @@ class SplitByFunction(Function):
             saver = group_file_savers[group_names]
             saver.part_file.write(line.encode('utf-8'))
             saver.part_file.write(b'\n')
+
         data_files = []
         group_file_savers = {}
         split_keys = self.args['key']
@@ -89,9 +90,9 @@ class SplitByFunction(Function):
 
 class SaveFunction(FunctionMultiMixin, Function):
     function_name = 'save'
-    
+
     def process(self, data_file, context):
-        logger.debug('save function process', data_file = data_file.file_path)
+        logger.debug('save function process', data_file=data_file.file_path)
         location = self.args.get('location')
         path_suffix = self.args.get('path_suffix')
         if path_suffix:
@@ -108,7 +109,7 @@ class PkIndexFunction(FunctionMultiMixin, Function):
     function_name = 'pk_index'
 
     def process(self, data_file, context):
-        logger.debug('index function process', data_file = data_file.file_path)
+        logger.debug('index function process', data_file=data_file.file_path)
         index_key = self.args['key']
         file_reader = DataFileReader(data_file.file_path)
         dst_path = os.path.join(context.temp_dir, f'{data_file.name}-pk-index.jsonl')
@@ -146,6 +147,46 @@ class FlattenFunction(FunctionMultiMixin,Function):
                 f.write(json.dumps(common.flatten_dict(data)).encode('utf-8'))
                 f.write(b'\n')
         return context.create_data_file(file_path = dst_path,tags = data_file.tags)
+
+
+class FormatFunction(FunctionMultiMixin, Function):
+    function_name = 'format'
+
+    def process(self, data_file, context):
+        def transform(data, fields, field_type_mapping):
+            for key in data.keys():
+                if key in fields and fields[key].type in field_type_mapping:
+                    try:
+                        type_format = field_type_mapping[fields[key].type]
+                        data[key] = type_format(data[key])
+                    except Exception:
+                        logger.error(f'transform data failed, key={key}, value={data[key]}, type={fields[key].type}')
+                        return None
+            return json.dumps(data)
+
+        logger.debug('format data file with data_view', data_file=data_file.file_path)
+        if data_file.file_type == 'index':
+            return data_file
+        table_name = self.args.get('table_name')
+        data_view = context.get_data_view(table_name)
+        if table_name is None or data_view is None:
+            logger.error('search table failed')
+            return data_file
+
+        field_type_mapping = data_view.field_type_mapping
+        fields = data_view.fields
+        file_reader = DataFileReader(data_file.file_path)
+
+        dst_path = os.path.join(context.temp_dir, f'{data_file.name}-format.jsonl')
+        file_saver = AtomicSaver(dst_path)
+        file_saver.setup()
+        for (data, line) in file_reader.readlines():
+            format_line = transform(data, fields, field_type_mapping)
+            if format_line:
+                file_saver.part_file.write(format_line.encode('utf-8'))
+                file_saver.part_file.write(b'\n')
+        file_saver.__exit__(None, None, None)
+        return context.create_data_file(file_path=file_saver.dest_path)
 
 
 class DeduplicateFunction(Function):

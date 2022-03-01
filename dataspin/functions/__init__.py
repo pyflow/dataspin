@@ -7,6 +7,7 @@ function_class_map = {
     'save': SaveFunction,
     'pk_index': PkIndexFunction,
     'flatten': FlattenFunction,
+    'format': FormatFunction,
     'deduplicate': DeduplicateFunction
 }
 
