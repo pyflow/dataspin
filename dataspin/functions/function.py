@@ -5,7 +5,6 @@ from dataspin.utils import common
 from dataspin.utils.file import DataFileReader
 from boltons.fileutils import AtomicSaver,atomic_save
 import json
-import hashlib
 
 
 class FunctionMultiMixin:
@@ -136,8 +135,8 @@ class DeduplicateFunction(Function):
             for data,line in file_reader.readlines():
                 pk_value = []
                 for pk in pks:
-                    pk_value.append(hashlib.sha1(data[pk].encode('utf-8')).hexdigest())
-                pk_value = ''.join(pk_value)
+                    pk_value.append(data[pk])
+                pk_value = tuple(pk_value)
                 if pk_value in pk_values:
                     continue
                 pk_values.add(pk_value)
