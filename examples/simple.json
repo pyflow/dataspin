@@ -72,6 +72,13 @@
                     "function": "flatten"
                 },
                 {
+                    "name": "deduplicate by event_id",
+                    "function": "deduplicate",
+                    "args": {
+                        "key": ["app_id","event_id"]
+                    }
+                },
+                {
                     "name": "save to target",
                     "function": "save",
                     "args": {
