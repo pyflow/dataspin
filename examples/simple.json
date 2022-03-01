@@ -47,6 +47,13 @@
             "source": "local_simple_data",
             "processes":[
                 {
+                    "name":"format by data_view",
+                    "function": "format",
+                    "args": {
+                        "table_name": "table"
+                    }
+                },
+                {
                     "name":"split by app_id",
                     "function": "splitby",
                     "args": {

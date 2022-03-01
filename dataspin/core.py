@@ -141,7 +141,7 @@ class ObjectStorage:
 
 class DataView:
     field_type_mapping = {
-        'str': str,
+        'string': str,
         'int': int,
         'float': float,
         'boolean': bool,
