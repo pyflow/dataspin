@@ -21,12 +21,22 @@ class SourceConfig:
     source_url: str
     args: Optional[dict] = field(default_factory=dict)
 
-
 @dataclass
 class StorageConfig:
     name: str
     url: str
     args: Optional[dict] = field(default_factory=dict)
+
+@dataclass
+class Field:
+    name: str
+    type: str
+
+@dataclass
+class DataViewConfig:
+    name: str
+    table_format: str
+    fields: Optional[List[Field]] = field(default_factory=list)
 
 @dataclass
 class PrimaryKeyCacheConfig:
@@ -61,6 +71,7 @@ class ProjectConfig:
     sources: Optional[List[SourceConfig]] = field(default_factory=list)
     streams: Optional[List[StreamConfig]] = field(default_factory=list)
     storages: Optional[List[StorageConfig]] = field(default_factory=list)
+    data_views: Optional[List[DataViewConfig]] = field(default_factory=list)
     pk_caches: Optional[List[PrimaryKeyCacheConfig]] = field(default_factory=list)
     webhooks: Optional[List[WebhookConfig]] = field(default_factory=list)
     data_processes: Optional[List[DataProcessConfig]] = field(default_factory=list)

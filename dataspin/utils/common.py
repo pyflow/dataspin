@@ -5,6 +5,8 @@ from urllib.parse import urlparse
 import json
 from typing import Any
 
+import pendulum
+
 b32alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 
 b32alphabet_dict = {}
@@ -100,6 +102,9 @@ def unmarshal(s: str) -> Any:
     """
     return json.loads(s)
 
+def format_timestring(date_str) -> str:
+    return pendulum.parse(date_str).to_iso8601_string()
+
 
 def flatten_dict(data: dict, root_key='', delimiter='.'):
     result = {}
@@ -130,4 +135,4 @@ def inflate_dict(flatten_dict, delimiter='.'):
                     tmp[l] = {}
                 tmp = tmp[l]
             tmp[k_list[-1]] = v
-    return result 
+    return result
