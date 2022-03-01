@@ -119,3 +119,27 @@ class FlattenFunction(FunctionMultiMixin,Function):
                 f.write(json.dumps(common.flatten_dict(data)).encode('utf-8'))
                 f.write(b'\n')
         return context.create_data_file(file_path = dst_path)
+
+
+class DeduplicateFunction(Function):
+    function_name = 'deduplicate'
+
+    def process(self,data_file,context):
+        if data_file.file_type == 'index':
+            return data_file
+        pks = self.args['key']
+        file_reader = DataFileReader(data_file.file_path)
+        dst_path = os.path.join(context.temp_dir,f'{data_file.name}-deduplicate.jsonl')
+        pk_values = set()
+        with atomic_save(dst_path) as f:
+            for data,line in file_reader.readlines():
+                pk_value = []
+                for pk in pks:
+                    pk_value.append(data[pk])
+                pk_value = tuple(pk_value)
+                if pk_value in pk_values:
+                    continue
+                pk_values.add(pk_value)
+                f.write(json.dumps(data).encode('utf-8'))
+                f.write(b'\n')
+        return data_file,context.create_data_file(file_path = dst_path)
