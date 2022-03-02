@@ -166,7 +166,7 @@ class DataFunction:
 
 
 class DataFile:
-    def __init__(self, file_path, file_type="table"):
+    def __init__(self, file_path, file_type="table", tags=None):
         self.name, self.ext = os.path.splitext(os.path.basename(file_path))
         if self.ext in ['.gz']:
             self.name, ext = os.path.splitext(self.name)
@@ -174,6 +174,7 @@ class DataFile:
         self.file_path = file_path
         self.file_type = file_type  # table or index
         self.file_format = "jsonl"  # can be jsonl, parquet
+        self.tags = tags
 
     @property
     def basename(self):
@@ -223,8 +224,8 @@ class DataTaskContext:
         self.final_files = data_files
         self.files_history.append(data_files)
 
-    def create_data_file(self, file_path, file_type="table", data_format="jsonl"):
-        datafile = DataFile(file_path=file_path, file_type=file_type)
+    def create_data_file(self, file_path, file_type="table", data_format="jsonl", tags=None):
+        datafile = DataFile(file_path=file_path, file_type=file_type, tags=tags)
         datafile.data_format = data_format
         return datafile
 

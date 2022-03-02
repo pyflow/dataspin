@@ -184,3 +184,62 @@ class DeduplicateFunction(Function):
                 f.write(json.dumps(data).encode('utf-8'))
                 f.write(b'\n')
         return data_file,context.create_data_file(file_path = dst_path)
+
+
+class FilterFunction(FunctionMultiMixin, Function):
+    function_name = 'filter'
+
+    relationship_func = {
+        'greater than or equal': lambda x, y: x >= y,
+        'less than or equal': lambda x, y: x <= y,
+        'greater than': lambda x, y: x > y,
+        'less than': lambda x, y: x < y,
+        'equal': lambda x, y: x == y,
+        'not equal': lambda x, y: x != y,
+        'in': lambda x, y: x in y,
+        'not in': lambda x, y: x not in y,
+        "all": lambda x, y: True
+    }
+
+    def process(self, data_file, context):
+        def filter(data, rule_list):
+            for rule in rule_list:
+                key = rule.get('key')
+                relationship = rule.get('relationship')
+                value = rule.get('value')
+                filter_func = self.relationship_func.get(relationship, lambda x, y: False)
+                if filter_func(data.get(key), value) is False:
+                    return False
+            return True
+
+        logger.debug('filter data file', data_file=data_file.file_path)
+        data_files = []
+
+        rules_config = self.args.get('filter_rules', [])
+        file_reader = DataFileReader(data_file.file_path)
+        for rule_config in rules_config:
+            tags = rule_config.get('tags')
+            rule_list = rule_config.get('rule', [])
+
+            dst_path = os.path.join(context.temp_dir, f'{data_file.name}-filter-{tags if tags else "default"}.jsonl')
+            file_saver = AtomicSaver(dst_path)
+            file_saver.setup()
+
+            for data, line in file_reader.readlines():
+                try:
+                    filtered = filter(data, rule_list)
+                    if filtered:
+                        file_saver.part_file.write(line.encode('utf-8'))
+                        file_saver.part_file.write(b'\n')
+                except TypeError as e:
+                    logger.error(f'filter value type mismatch, exception={repr(e)}')
+                except Exception as e:
+                    logger.error(f'filter failed, exception={repr(e)}')
+
+            file_saver.__exit__(None, None, None)
+            data_files.append(context.create_data_file(file_path=file_saver.dest_path, tags=tags))
+
+        return data_files
+
+
+
