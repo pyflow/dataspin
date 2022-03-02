@@ -1,3 +1,4 @@
+from collections import namedtuple
 import os
 from basepy.log import logger
 
@@ -24,41 +25,20 @@ class Function:
     function_name = 'pass'
 
     def __init__(self, args):
-        """
-        dynamic_tags: define in args,and calculate value from data 
-        static_tags: extends from last data file,or defined in args,defined tags have high priority
-        """
         self.args = args
-        self.dynamic_tags = {}
-        self.static_tags = {}
 
     def process(self, data_file, context):
-        tags = self.args.get('tags')
-        if data_file.tags:
-            self.static_tags = data_file.tags
-        if tags:
-            parsed_static_tags,self.dynamic_tags = self._parse_tags(tags)
-            self.static_tags.update(parsed_static_tags)
+        pass
 
     @property
     def name(self):
         return self.function_name
-    
-    def _parse_tags(self,tags):
-        dynamic_tags = {}
-        static_tags = {}
-        for tag_k,tag_v in tags.items():
-            if tag_v.startswith('{') and tag_v.endswith('}'):
-                dynamic_tags[tag_k] = tag_v.strip('{').strip('}')
-            else:
-                static_tags[tag_k] = tag_v
-        return static_tags,dynamic_tags
+
 
 class SplitByFunction(Function):
     function_name = 'splitby'
 
     def process(self, data_file, context):
-        super().process(data_file,context)
         def write_to_group(group_names, line):
             if group_names not in group_file_savers:
                 group_name = '-'.join(group_names)
@@ -73,9 +53,7 @@ class SplitByFunction(Function):
         data_files = []
         group_file_savers = {}
         split_keys = self.args['key']
-        for tag in self.dynamic_tags.values():
-            if tag not in split_keys:
-                raise Exception('dynamic tag %s should be in split keys'%tag)
+        tags = self.args['tags']
         tags_with_group = {}
         file_reader = DataFileReader(data_file.file_path)
         for (data, line) in file_reader.readlines():
@@ -85,31 +63,31 @@ class SplitByFunction(Function):
                 group_names.append(group_name)
             group_names = tuple(group_names)
             if not tags_with_group.get(group_names):
-                tags_with_group[group_names] = {}
-            for tag_k,tag_v in self.dynamic_tags.items():
-                tags_with_group[group_names][tag_k] = data.get(tag_v)          
+                object_name = namedtuple("DataObject", data.keys())(*data.values())
+                fill_tags = {}
+                for tag_k,tag_v in tags.items():
+                    fill_tags[tag_k] = tag_v.format(data=object_name)
+                tags_with_group[group_names] = fill_tags
             if not group_names:
                 # TODO: warning
                 continue
             write_to_group(group_names, line)
         for group_names,saver in group_file_savers.items():
-            saver.__exit__(None, None, None)
-            if tags_with_group[group_names] and self.static_tags:
-                tags_with_group[group_names].update(self.static_tags)
+            saver.__exit__(None, None, None)                
             tags = tags_with_group[group_names] if tags_with_group[group_names] else None
             data_files.append(context.create_data_file(file_path=saver.dest_path,tags=tags))
         return data_files
+
 
 class SaveFunction(FunctionMultiMixin, Function):
     function_name = 'save'
 
     def process(self, data_file, context):
-        super().process(data_file,context)
         logger.debug('save function process', data_file=data_file.file_path)
         location = self.args.get('location')
         path_suffix = self.args.get('path_suffix')
         if path_suffix:
-            path_suffix = path_suffix.format(**self.static_tags)
+            path_suffix = path_suffix.format(**data_file.tags)
         storage = context.get_storage(location)
         if not storage:
             raise Exception('No storage defined.')
@@ -122,7 +100,6 @@ class PkIndexFunction(FunctionMultiMixin, Function):
     function_name = 'pk_index'
 
     def process(self, data_file, context):
-        super().process(data_file,context)
         logger.debug('index function process', data_file=data_file.file_path)
         index_key = self.args['key']
         file_reader = DataFileReader(data_file.file_path)
@@ -142,7 +119,7 @@ class PkIndexFunction(FunctionMultiMixin, Function):
                 file_saver.part_file.write(b'\n')
 
         file_saver.__exit__(None, None, None)
-        new_data_file = context.create_data_file(dst_path, file_type="index",tags= self.static_tags)
+        new_data_file = context.create_data_file(dst_path, file_type="index",tags= data_file.tags)
         return [data_file, new_data_file]
 
 
@@ -150,7 +127,6 @@ class FlattenFunction(FunctionMultiMixin,Function):
     function_name = 'flatten'
 
     def process(self, data_file, context):
-        super().process(data_file,context)
         if data_file.data_format !='jsonl':
             raise Exception('Not supported file type')
         if data_file.file_type == 'index':
@@ -161,14 +137,13 @@ class FlattenFunction(FunctionMultiMixin,Function):
             for data,line in file_reader.readlines():
                 f.write(json.dumps(common.flatten_dict(data)).encode('utf-8'))
                 f.write(b'\n')
-        return context.create_data_file(file_path = dst_path,tags = self.static_tags)
+        return context.create_data_file(file_path = dst_path,tags = data_file.tags)
 
 
 class FormatFunction(FunctionMultiMixin, Function):
     function_name = 'format'
 
     def process(self, data_file, context):
-        super().process(data_file,context)
         def transform(data, fields, field_type_mapping):
             for key in data.keys():
                 if key in fields and fields[key].type in field_type_mapping:
@@ -209,7 +184,6 @@ class DeduplicateFunction(Function):
     function_name = 'deduplicate'
 
     def process(self,data_file,context):
-        super().process(data_file,context)
         if data_file.file_type == 'index':
             return data_file
         pks = self.args['key']
@@ -227,4 +201,4 @@ class DeduplicateFunction(Function):
                 pk_values.add(pk_value)
                 f.write(json.dumps(data).encode('utf-8'))
                 f.write(b'\n')
-        return data_file,context.create_data_file(file_path = dst_path,tags = self.static_tags)
+        return data_file,context.create_data_file(file_path = dst_path,tags = data_file.tags)
