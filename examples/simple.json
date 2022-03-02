@@ -58,7 +58,7 @@
                     "function": "splitby",
                     "args": {
                         "key": ["app_id","platform"],
-                        "tags": {"app_id":"&key","platform":"&key","service":"dataspin"}
+                        "tags": {"app_id":"{app_id}","platform":"{platform}","service":"dataspin"}
                     }
                 },
                 {
