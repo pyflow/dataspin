@@ -1,3 +1,4 @@
+from collections import namedtuple
 import os
 from basepy.log import logger
 
@@ -39,30 +40,43 @@ class SplitByFunction(Function):
     function_name = 'splitby'
 
     def process(self, data_file, context):
-        def write_to_group(group_name, line):
-            if group_name not in group_file_savers:
+        def write_to_group(group_names, line):
+            if group_names not in group_file_savers:
+                group_name = '-'.join(group_names)
                 dst_path = os.path.join(context.temp_dir, f'{data_file.name}-group-{group_name}.jsonl')
                 file_saver = AtomicSaver(dst_path)
                 file_saver.setup()
-                group_file_savers[group_name] = file_saver
-            saver = group_file_savers[group_name]
+                group_file_savers[group_names] = file_saver
+            saver = group_file_savers[group_names]
             saver.part_file.write(line.encode('utf-8'))
             saver.part_file.write(b'\n')
 
         data_files = []
         group_file_savers = {}
-        split_key = self.args['key'][0]
+        split_keys = self.args['key']
+        tags = self.args['tags']
+        tags_with_group = {}
         file_reader = DataFileReader(data_file.file_path)
         for (data, line) in file_reader.readlines():
-            group_name = data.get(split_key)
-            if not group_name:
+            group_names = []
+            for split_key in split_keys:
+                group_name = data.get(split_key)
+                group_names.append(group_name)
+            group_names = tuple(group_names)
+            if not tags_with_group.get(group_names):
+                object_name = namedtuple("DataObject", data.keys())(*data.values())
+                fill_tags = {}
+                for tag_k,tag_v in tags.items():
+                    fill_tags[tag_k] = tag_v.format(data=object_name)
+                tags_with_group[group_names] = fill_tags
+            if not group_names:
                 # TODO: warning
                 continue
-            write_to_group(group_name, line)
-
-        for saver in group_file_savers.values():
-            saver.__exit__(None, None, None)
-            data_files.append(context.create_data_file(file_path=saver.dest_path))
+            write_to_group(group_names, line)
+        for group_names,saver in group_file_savers.items():
+            saver.__exit__(None, None, None)                
+            tags = tags_with_group[group_names] if tags_with_group[group_names] else None
+            data_files.append(context.create_data_file(file_path=saver.dest_path,tags=tags))
         return data_files
 
 
@@ -72,10 +86,16 @@ class SaveFunction(FunctionMultiMixin, Function):
     def process(self, data_file, context):
         logger.debug('save function process', data_file=data_file.file_path)
         location = self.args.get('location')
+        path_suffix = self.args.get('path_suffix')
+        if path_suffix:
+            path_suffix = path_suffix.format(**data_file.tags)
+            if not path_suffix.endswith('/'):
+                path_suffix = path_suffix + '/'
         storage = context.get_storage(location)
         if not storage:
             raise Exception('No storage defined.')
-        storage.save(data_file.basename, data_file.file_path)
+        key = path_suffix + data_file.basename if path_suffix else data_file.basename
+        storage.save(key, data_file.file_path)
         return data_file
 
 
@@ -102,7 +122,7 @@ class PkIndexFunction(FunctionMultiMixin, Function):
                 file_saver.part_file.write(b'\n')
 
         file_saver.__exit__(None, None, None)
-        new_data_file = context.create_data_file(dst_path, file_type="index")
+        new_data_file = context.create_data_file(dst_path, file_type="index",tags= data_file.tags)
         return [data_file, new_data_file]
 
 
@@ -120,7 +140,7 @@ class FlattenFunction(FunctionMultiMixin, Function):
             for data, line in file_reader.readlines():
                 f.write(json.dumps(common.flatten_dict(data)).encode('utf-8'))
                 f.write(b'\n')
-        return context.create_data_file(file_path=dst_path)
+        return context.create_data_file(file_path = dst_path,tags = data_file.tags)
 
 
 class FormatFunction(FunctionMultiMixin, Function):
@@ -184,7 +204,7 @@ class DeduplicateFunction(Function):
                 pk_values.add(pk_value)
                 f.write(json.dumps(data).encode('utf-8'))
                 f.write(b'\n')
-        return data_file, context.create_data_file(file_path=dst_path)
+        return data_file, context.create_data_file(file_path=dst_path, tags=data_file.tags)
 
 
 class FilterFunction(FunctionMultiMixin, Function):
@@ -200,7 +220,7 @@ class FilterFunction(FunctionMultiMixin, Function):
             tags = rule_config.get('tags')
             rule = rule_config.get('rule', "False")
 
-            dst_path = os.path.join(context.temp_dir, f'{data_file.name}-filter-{tags if tags else "default"}.jsonl')
+            dst_path = os.path.join(context.temp_dir, f'{data_file.name}-filter-{"_".join(list(tags.values())) if tags else "default"}.jsonl')
             file_saver = AtomicSaver(dst_path)
             file_saver.setup()
 

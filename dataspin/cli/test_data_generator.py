@@ -14,7 +14,7 @@ from random import shuffle
 app_ids = ['APPIOXDKXIESP', 'APPOWLSLSDWLD', 'APPSISEKIDESS']
 
 event_names = ['login', 'logout', 'enter_splash', 'leave_splash', 'session']
-
+platform = ['android','ios']
 
 def generate_json_data(bp_timestamp):
     data_dict = {
@@ -22,6 +22,7 @@ def generate_json_data(bp_timestamp):
         'event_name': event_names[randint(0, len(event_names)-1)],
         'event_id': str(uuid.uuid4()),
         'bp_timestamp': bp_timestamp,
+        'platform':platform[randint(0,len(platform)-1)],
         'device':{
             'brand':'',
             'os_type':'android',
@@ -37,7 +38,7 @@ def save_json_file(file_dir: str, file_name, data_list: List[str]):
         f.write('\n'.join(data_list).encode('utf-8'))
 
 
-def generate_test_data(file_dir='temp', file_numbers=1, data_counts=1000, duplicate_data_count=1, data_format='jsonl', time_range=2, time_unit='day'):
+def generate_test_data(file_dir='tmp/source', file_numbers=1, data_counts=1000, duplicate_data_count=1, data_format='jsonl', time_range=2, time_unit='day'):
     file_dir = file_dir.strip('/')
     if os.path.exists(file_dir):
         shutil.rmtree(file_dir)
@@ -89,7 +90,7 @@ def cli():
 
 @cli.command()
 @click.option('--execute_duration', '-ed', type=click.IntRange(min=10), default=60, help='execute duration,unit is second,default 60')
-@click.option('--file_dir', '-fd', default='temp', help='file dir')
+@click.option('--file_dir', '-fd', default='tmp/source', help='file dir')
 @click.option('--file_numbers', '-fn', type=click.IntRange(min=1), default=1, help='file numbers')
 @click.option('--data_counts', '-dc', type=click.IntRange(min=10), default=100000, help='data counts')
 @click.option('--duplicate_data_count', '-dd', type=click.IntRange(min=0), default=1000, help='duplicate data counts')
