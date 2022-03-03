@@ -59,29 +59,11 @@
                         "filter_rules": [
                             {
                                 "tags": "specific",
-                                "rule": [
-                                    {
-                                        "key": "event_name",
-                                        "relationship": "equal",
-                                        "value": "login"
-                                    },
-                                    {
-                                        "key": "app_id",
-                                        "relationship": "in",
-                                        "value": [
-                                            "APPIOXDKXIESP",
-                                            "APPOWLSLSDWLD"
-                                        ]
-                                    }
-                                ]
+                                "rule": "event_name == 'login' and app_id in ['APPIOXDKXIESP','APPOWLSLSDWLD']"
                             },
                             {
                                 "tags": null,
-                                "rule": [
-                                    {
-                                        "relationship": "all"
-                                    }
-                                ]
+                                "rule": "True"
                             }
                         ]
                     }
