@@ -88,10 +88,12 @@ class SaveFunction(FunctionMultiMixin, Function):
         path_suffix = self.args.get('path_suffix')
         if path_suffix:
             path_suffix = path_suffix.format(**data_file.tags)
+            if not path_suffix.endswith('/'):
+                path_suffix = path_suffix + '/'
         storage = context.get_storage(location)
         if not storage:
             raise Exception('No storage defined.')
-        key = path_suffix + os.path.sep + data_file.basename if path_suffix else data_file.basename
+        key = path_suffix + data_file.basename if path_suffix else data_file.basename
         storage.save(key, data_file.file_path)
         return data_file
 
