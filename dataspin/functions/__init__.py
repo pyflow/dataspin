@@ -8,7 +8,8 @@ function_class_map = {
     'pk_index': PkIndexFunction,
     'flatten': FlattenFunction,
     'format': FormatFunction,
-    'deduplicate': DeduplicateFunction
+    'deduplicate': DeduplicateFunction,
+    'filter': FilterFunction
 }
 
 def creat_function_with(name: str, args):

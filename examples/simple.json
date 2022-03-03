@@ -1,9 +1,8 @@
-
 {
     "dataspin": {
         "working_dir": "./tmp/working"
     },
-    "streams" : [
+    "streams": [
         {
             "name": "local_simple_data",
             "data_format": "dataspin",
@@ -16,7 +15,7 @@
             "url": "file://./tmp/target/"
         }
     ],
-    "data_views":[
+    "data_views": [
         {
             "name": "table",
             "table_format": "jsonl",
@@ -40,21 +39,37 @@
             ]
         }
     ],
-    "data_processes":[
+    "data_processes": [
         {
             "name": "split and build index",
             "description": "",
             "source": "local_simple_data",
-            "processes":[
+            "processes": [
                 {
-                    "name":"format by data_view",
+                    "name": "format by data_view",
                     "function": "format",
                     "args": {
                         "table_name": "table"
                     }
                 },
                 {
-                    "name":"split by app_id",
+                    "name": "filter",
+                    "function": "filter",
+                    "args": {
+                        "filter_rules": [
+                            {
+                                "tags": {"filter": "specific"},
+                                "rule": "event_name == 'login' and app_id in ['APPIOXDKXIESP','APPOWLSLSDWLD']"
+                            },
+                            {
+                                "tags": {"filter": "default"},
+                                "rule": "True"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "split by app_id",
                     "function": "splitby",
                     "args": {
                         "key": ["app_id"],
@@ -65,7 +80,10 @@
                     "name": "build primary key index",
                     "function": "pk_index",
                     "args": {
-                        "key": ["app_id", "event_id"]
+                        "key": [
+                            "app_id",
+                            "event_id"
+                        ]
                     }
                 },
                 {
@@ -76,7 +94,10 @@
                     "name": "deduplicate by event_id",
                     "function": "deduplicate",
                     "args": {
-                        "key": ["app_id","event_id"]
+                        "key": [
+                            "app_id",
+                            "event_id"
+                        ]
                     }
                 },
                 {
@@ -84,7 +105,7 @@
                     "function": "save",
                     "args": {
                         "location": "simple_target",
-                        "path_suffix": "{service}/app_id={app_id}",        
+                        "path_suffix": "{service}/filter={filter}/app_id={app_id}",
                         "table_name": "table"
                     }
                 }

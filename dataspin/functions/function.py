@@ -4,8 +4,9 @@ from basepy.log import logger
 
 from dataspin.utils import common
 from dataspin.utils.file import DataFileReader
-from boltons.fileutils import AtomicSaver,atomic_save
+from boltons.fileutils import AtomicSaver, atomic_save
 import json
+from jinja2 import Environment, TemplateSyntaxError
 
 
 class FunctionMultiMixin:
@@ -125,18 +126,18 @@ class PkIndexFunction(FunctionMultiMixin, Function):
         return [data_file, new_data_file]
 
 
-class FlattenFunction(FunctionMultiMixin,Function):
+class FlattenFunction(FunctionMultiMixin, Function):
     function_name = 'flatten'
 
     def process(self, data_file, context):
-        if data_file.data_format !='jsonl':
+        if data_file.data_format != 'jsonl':
             raise Exception('Not supported file type')
         if data_file.file_type == 'index':
             return data_file
         file_reader = DataFileReader(data_file.file_path)
         dst_path = os.path.join(context.temp_dir, f'{data_file.name}-flatten.jsonl')
         with atomic_save(dst_path) as f:
-            for data,line in file_reader.readlines():
+            for data, line in file_reader.readlines():
                 f.write(json.dumps(common.flatten_dict(data)).encode('utf-8'))
                 f.write(b'\n')
         return context.create_data_file(file_path = dst_path,tags = data_file.tags)
@@ -185,15 +186,15 @@ class FormatFunction(FunctionMultiMixin, Function):
 class DeduplicateFunction(Function):
     function_name = 'deduplicate'
 
-    def process(self,data_file,context):
+    def process(self, data_file, context):
         if data_file.file_type == 'index':
             return data_file
         pks = self.args['key']
         file_reader = DataFileReader(data_file.file_path)
-        dst_path = os.path.join(context.temp_dir,f'{data_file.name}-deduplicate.jsonl')
+        dst_path = os.path.join(context.temp_dir, f'{data_file.name}-deduplicate.jsonl')
         pk_values = set()
         with atomic_save(dst_path) as f:
-            for data,line in file_reader.readlines():
+            for data, line in file_reader.readlines():
                 pk_value = []
                 for pk in pks:
                     pk_value.append(data[pk])
@@ -203,4 +204,41 @@ class DeduplicateFunction(Function):
                 pk_values.add(pk_value)
                 f.write(json.dumps(data).encode('utf-8'))
                 f.write(b'\n')
-        return data_file,context.create_data_file(file_path = dst_path,tags = data_file.tags)
+        return data_file, context.create_data_file(file_path=dst_path, tags=data_file.tags)
+
+
+class FilterFunction(FunctionMultiMixin, Function):
+    function_name = 'filter'
+
+    def process(self, data_file, context):
+        logger.debug('filter data file', data_file=data_file.file_path)
+        data_files = []
+
+        rules_config = self.args.get('filter_rules', [])
+        file_reader = DataFileReader(data_file.file_path)
+        for rule_config in rules_config:
+            tags = rule_config.get('tags')
+            rule = rule_config.get('rule', "False")
+
+            dst_path = os.path.join(context.temp_dir, f'{data_file.name}-filter-{"_".join(list(tags.values())) if tags else "default"}.jsonl')
+            file_saver = AtomicSaver(dst_path)
+            file_saver.setup()
+
+            # compile expression by jinja2
+            compiled_expr = Environment().compile_expression(rule)
+
+            for data, line in file_reader.readlines():
+                try:
+                    filtered = compiled_expr(data)
+                    if filtered:
+                        file_saver.part_file.write(line.encode('utf-8'))
+                        file_saver.part_file.write(b'\n')
+                except TemplateSyntaxError as e:
+                    logger.error(f'filter rule syntax error, exception={repr(e)}')
+                except Exception as e:
+                    logger.error(f'filter failed, exception={repr(e)}')
+
+            file_saver.__exit__(None, None, None)
+            data_files.append(context.create_data_file(file_path=file_saver.dest_path, tags=tags))
+
+        return data_files
