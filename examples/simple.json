@@ -57,7 +57,8 @@
                     "name":"split by app_id",
                     "function": "splitby",
                     "args": {
-                        "key": ["app_id"]
+                        "key": ["app_id"],
+                        "tags": {"app_id":"{data.app_id}","service":"dataspin"}
                     }
                 },
                 {
@@ -83,6 +84,7 @@
                     "function": "save",
                     "args": {
                         "location": "simple_target",
+                        "path_suffix": "{service}/app_id={app_id}",        
                         "table_name": "table"
                     }
                 }
