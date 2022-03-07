@@ -52,7 +52,6 @@ class LocalStreamProvider:
             self.processed_file_list.append(file_path)
                 
 
-
 class LocalStorageProvider:
 
     def __init__(self, path, options):

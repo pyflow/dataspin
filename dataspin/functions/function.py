@@ -56,7 +56,7 @@ class SplitByFunction(Function):
         split_keys = self.args['key']
         tags = self.args['tags']
         tags_with_group = {}
-        file_reader = DataFileReader(data_file.file_path)
+        file_reader = DataFileReader(data_file.file_path,auth_info = data_file.auth_info)
         for (data, line) in file_reader.readlines():
             group_names = []
             for split_key in split_keys:
@@ -80,22 +80,26 @@ class SplitByFunction(Function):
         return data_files
 
 
-class SaveFunction(FunctionMultiMixin, Function):
+class SaveFunction(FunctionMultiMixin,Function):
     function_name = 'save'
 
     def process(self, data_file, context):
         logger.debug('save function process', data_file=data_file.file_path)
         location = self.args.get('location')
         path_suffix = self.args.get('path_suffix')
+        trigger = self.args.get('trigger')
+
         if path_suffix:
             path_suffix = path_suffix.format(**data_file.tags)
             if not path_suffix.endswith('/'):
                 path_suffix = path_suffix + '/'
         storage = context.get_storage(location)
+        stream = context.get_stream(trigger)
         if not storage:
             raise Exception('No storage defined.')
         key = path_suffix + data_file.basename if path_suffix else data_file.basename
-        storage.save(key, data_file.file_path)
+        path = storage.save(key, data_file.file_path)
+        stream.send_to_stream(path)
         return data_file
 
 

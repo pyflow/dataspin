@@ -12,11 +12,13 @@ install_requires = [
     'basepy>=0.3.5',
     'redis>=3.5.3',
     'boto3>=1.19.12',
-    'pendulum==2.1.2'
+    'pendulum==2.1.2',
     'dataclass_factory',
     'schedule',
     'boltons',
-    'parsy'
+    'parsy',
+    'pulsar-client==2.7.1',
+    'cos-python-sdk-v5==1.9.15'
 ]
 # pip install -e '.[test]'
 test_requires = [

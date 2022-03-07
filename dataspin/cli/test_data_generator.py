@@ -1,11 +1,9 @@
 import datetime
-from distutils.util import execute
 import gzip
 import json
 import os
 from random import randint
 import shutil
-import time
 from typing import List
 import uuid
 import click
@@ -14,7 +12,8 @@ from random import shuffle
 app_ids = ['APPIOXDKXIESP', 'APPOWLSLSDWLD', 'APPSISEKIDESS']
 
 event_names = ['login', 'logout', 'enter_splash', 'leave_splash', 'session']
-platform = ['android','ios']
+platform = ['android', 'ios']
+
 
 def generate_json_data(bp_timestamp):
     data_dict = {
@@ -22,11 +21,11 @@ def generate_json_data(bp_timestamp):
         'event_name': event_names[randint(0, len(event_names)-1)],
         'event_id': str(uuid.uuid4()),
         'bp_timestamp': bp_timestamp,
-        'platform':platform[randint(0,len(platform)-1)],
-        'device':{
-            'brand':'',
-            'os_type':'android',
-            'os_version':'12'
+        'platform': platform[randint(0, len(platform)-1)],
+        'device': {
+            'brand': '',
+            'os_type': 'android',
+            'os_version': '12'
         }
     }
     return json.dumps(data_dict)

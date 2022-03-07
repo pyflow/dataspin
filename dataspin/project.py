@@ -14,6 +14,7 @@ class StreamConfig:
     url: str
     data_format: Optional[str] = "dataspin"
     args: Optional[dict] = field(default_factory=dict)
+    data_auth_info: Optional[dict] = field(default_factory=dict)
 
 @dataclass
 class SourceConfig:

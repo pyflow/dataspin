@@ -7,7 +7,7 @@ import importlib
 import json
 from boltons.fileutils import atomic_save
 
-from dataspin.providers import get_provider_class, get_provider
+from dataspin.providers import get_provider
 from dataspin.utils.common import uuid_generator, marshal, format_timestring
 from dataspin.functions import creat_function_with
 from multiprocessing import Process, Pool
@@ -66,6 +66,7 @@ class DataStream:
         self.conf = conf
         self._name = conf.name
         self._provider = get_provider(conf.url)
+        self._data_auth_info = conf.data_auth_info
 
     @property
     def name(self):
@@ -77,11 +78,15 @@ class DataStream:
 
     def get(self, context, block=True, timeout=None):
         file_path = self.provider.get(block=block, timeout=timeout)
-        logger.debug('stream get function got', file_path=file_path)
+        logger.debug('stream get function got', file_path=file_path,auth_info=self._data_auth_info)
         if file_path:
-            context.init_data_files([DataFile(file_path=file_path)])
+            context.init_data_files([DataFile(file_path=file_path,auth_info=self._data_auth_info)])
             return context
         return None
+    
+    def send_to_stream(self,file_path:str):
+        bucket,key = file_path.split('/',1)
+        self._provider.send_message(bucket,key)
 
     def get_nowait(self):
         return self.get(block=False)
@@ -133,10 +138,10 @@ class ObjectStorage:
         return self._provider
 
     def save(self, key, local_file):
-        self.provider.save(key, local_file)
+        return self.provider.save(key, local_file)
 
     def save_data(self, key, lines):
-        self.provider.save_data(key, lines)
+        return self.provider.save_data(key, lines)
 
 
 class DataView:
@@ -166,7 +171,7 @@ class DataFunction:
 
 
 class DataFile:
-    def __init__(self, file_path, file_type="table",tags = None):
+    def __init__(self, file_path, file_type="table",tags = None,auth_info=None):
         self.name, self.ext = os.path.splitext(os.path.basename(file_path))
         if self.ext in ['.gz']:
             self.name, ext = os.path.splitext(self.name)
@@ -175,6 +180,7 @@ class DataFile:
         self.file_type = file_type # table or index
         self.file_format = "jsonl" # can be jsonl, parquet
         self.tags = tags
+        self.auth_info = auth_info
 
     @property
     def basename(self):
