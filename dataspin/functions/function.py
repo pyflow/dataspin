@@ -94,12 +94,15 @@ class SaveFunction(FunctionMultiMixin,Function):
             if not path_suffix.endswith('/'):
                 path_suffix = path_suffix + '/'
         storage = context.get_storage(location)
-        stream = context.get_stream(trigger)
         if not storage:
             raise Exception('No storage defined.')
         key = path_suffix + data_file.basename if path_suffix else data_file.basename
         path = storage.save(key, data_file.file_path)
-        stream.send_to_stream(path)
+        if trigger:
+            stream = context.get_stream(trigger)
+            if not stream:
+                raise Exception('No stream defined.')
+            stream.send_to_stream(path)
         return data_file
 
 
