@@ -6,7 +6,7 @@
     "sources": [
         {
             "name": "simple_source",
-            "source_url": "pyclass::dataspin.playhouse.simple::SimpleSource"
+            "source_url": "pyclass::dataspin.more.simple::SimpleSource"
         }
     ],
     "storages": [

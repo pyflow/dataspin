@@ -2,7 +2,7 @@ import boto3
 import os
 
 from basepy.log import logger
-from dataspin.utils.util import parse_url_params, parse_s3_url
+from dataspin.utils.common import parse_url_params, parse_s3_url
 
 
 class SQSStreamProvider:
