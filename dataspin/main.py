@@ -20,5 +20,13 @@ def run(ctx, project):
     engine = SpinEngine(conf)
     engine.run()
 
+@click.command()
+@click.argument("project", type=click.Path(exists=True))
+@click.pass_context
+def start(ctx, project):
+    conf = ProjectConfig.load(project)
+    engine = SpinEngine(conf)
+    engine.start()
 
 main.add_command(run)
+main.add_command(start)

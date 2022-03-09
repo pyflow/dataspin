@@ -25,7 +25,7 @@
                 "start_date": "2021-12-12"
             },
             "schedules":[
-                "every day at 8:00"
+                "every 10seconds"
             ],
             "processes":[
                 {

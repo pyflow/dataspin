@@ -13,7 +13,7 @@ install_requires = [
     'boto3>=1.19.12',
     'pendulum>=2.1.2'
     'dataclass_factory',
-    'schedule',
+    'jinja2',
     'boltons',
     'parsy'
 ]

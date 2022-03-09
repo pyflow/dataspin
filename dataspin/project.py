@@ -61,8 +61,9 @@ class ProcessFunctionConfig:
 class DataProcessConfig:
     name: str
     source: str
-    fetch_args: Optional[dict] = field(default_factory=dict)
     description: Optional[str] = ""
+    source_args: Optional[dict] = field(default_factory=dict)
+    schedules: Optional[List[str]] = field(default_factory=list)
     processes: Optional[List[ProcessFunctionConfig]] = field(default_factory=list)
 
 @dataclass
