@@ -1,4 +1,6 @@
+import atexit
 import os
+import time
 import tempfile
 import importlib
 from boltons.fileutils import atomic_save
@@ -7,7 +9,6 @@ from dataspin.providers import get_provider_class, get_provider
 from dataspin.utils.common import uuid_generator, marshal, format_timestring
 from dataspin.utils.schedule import add_schedule, run_scheduler
 from dataspin.functions import creat_function_with
-from multiprocessing import Process, Pool
 from basepy.log import logger
 
 
@@ -258,7 +259,10 @@ class DataProcess:
     def start(self):
         if self.is_fetch_job and self._schedules:
             for schedule_str in self._schedules:
-                add_schedule(schedule_str, self.run)
+                add_schedule(schedule_str, self.run_in_pool)
+
+    def run_in_pool(self):
+        self.engine.run_data_process(self.run)
 
     def run(self):
         def append_or_extend(datafiles, newfile):
@@ -321,17 +325,17 @@ class DataProcess:
 class SpinEngine:
     def __init__(self, conf):
         self.conf = conf
-        # self.runner_pool = Pool(4)
         self.config = {}
         self.sources = {}
         self.streams = {}
         self.storages = {}
         self.data_views = {}
         self.data_processes = {}
-        self.stop_scheduler_event = run_scheduler()
+        self.stop_scheduler_event, self.scheduler_thread = run_scheduler()
         self.load()
         self.uuid = 'project_' + uuid_generator()
         self.temp_dir_path = os.path.join(os.getcwd(), self.uuid)
+        atexit.register(self.join)
 
     @property
     def working_dir(self):
@@ -363,16 +367,16 @@ class SpinEngine:
 
     def run(self):
         for process_name, process in self.data_processes.items():
-            self.run_process(process)
-
-    def run_process(self, process):
-        process.run()
-        # self.runner_pool.apply_async(process.run)
+            process.run()
 
     def start(self):
         for _, process in self.data_processes.items():
             process.start()
 
+    def run_data_process(self, process_fn):
+        process_fn()
+
     def join(self):
         self.stop_scheduler_event.set()
-        self.runner_pool.join()
+        time.sleep(3)
+        self.scheduler_thread.join()

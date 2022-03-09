@@ -107,6 +107,6 @@ def run_scheduler(interval=1):
                 scheduler.run_pending()
                 time.sleep(interval)
 
-    continuous_thread = ScheduleThread()
-    continuous_thread.start()
-    return stop_scheduler_event
+    scheduler_thread = ScheduleThread()
+    scheduler_thread.start()
+    return stop_scheduler_event, scheduler_thread
