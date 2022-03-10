@@ -108,6 +108,22 @@
                         "path_suffix": "{service}/filter={filter}/app_id={app_id}",
                         "table_name": "table"
                     }
+                },
+                {
+                    "name": "merge file by tag",
+                    "function": "merge",
+                    "args": {
+                        "tags": ["app_id"],
+                        "output_file_lines": "100000"
+                    }
+                },
+                {
+                    "name": "merge file by path",
+                    "function": "merge",
+                    "args": {
+                        "path_suffix": "dataspin/app_id={app_id}/",
+                        "output_file_lines": "100000"
+                    }
                 }
             ]
         }
