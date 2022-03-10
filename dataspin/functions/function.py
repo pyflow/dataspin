@@ -242,3 +242,63 @@ class FilterFunction(FunctionMultiMixin, Function):
             data_files.append(context.create_data_file(file_path=file_saver.dest_path, tags=tags))
 
         return data_files
+
+
+class MergeFunction(FunctionMultiMixin, Function):
+    function_name = 'merge'
+    default_file_size = 100000
+
+    def __init__(self, args):
+        super(MergeFunction, self).__init__(args)
+        self.file_size = self.args.get('output_file_lines', self.default_file_size)
+
+    def process(self, data_file, context):
+        new_data_files = self.merge_group_file('default', [data_file], context)
+        return new_data_files
+
+    def process_multi(self, data_files, context):
+        merge_group = {}
+        result = []
+        if self.args.get('tags'):
+            tags = self.args.get('tags')
+            for data_file in data_files:
+                tag_value_list = [data_file.tags.get(tag) for tag in tags]
+                group_name = '_'.join(list(filter(lambda x: x is not None, tag_value_list)))
+                if group_name not in merge_group:
+                    merge_group[group_name] = [data_file]
+                else:
+                    merge_group[group_name].append(data_file)
+        else:
+            merge_group['default'] = data_files
+
+        for group_set, file_list in merge_group.items():
+            new_data_files = self.merge_group_file(group_set, file_list, context)
+            result.extend(new_data_files)
+        return result
+
+    def merge_group_file(self, group_name, file_list, context):
+        file_count = 0
+        count = 0
+        new_data_files = []
+        dst_path = os.path.join(context.temp_dir, f'merge-{group_name}_{file_count}.jsonl')
+        file_saver = AtomicSaver(dst_path)
+        file_saver.setup()
+        for file in file_list:
+            file_reader = DataFileReader(file.file_path)
+            for (data, line) in file_reader.readlines():
+                file_saver.part_file.write(line.encode('utf-8'))
+                file_saver.part_file.write(b'\n')
+                if count >= self.file_size:
+                    file_count += 1
+                    count = 0
+                    file_saver.__exit__(None, None, None)
+                    new_data_files.append(context.create_data_file(file_saver.dest_path))
+                    next_dst_path = os.path.join(context.temp_dir, f'merge-{group_name}_{file_count}.jsonl')
+                    file_saver = AtomicSaver(next_dst_path)
+                    file_saver.setup()
+                count += 1
+
+        if file_saver:
+            file_saver.__exit__(None, None, None)
+            new_data_files.append(context.create_data_file(file_saver.dest_path))
+        return new_data_files

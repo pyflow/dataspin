@@ -59,7 +59,7 @@
                         "filter_rules": [
                             {
                                 "tags": {"filter": "specific"},
-                                "rule": "event_name == 'login' and app_id in ['APPIOXDKXIESP','APPOWLSLSDWLD']"
+                                "rule": "app_id in ['APPIOXDKXIESP','APPOWLSLSDWLD']"
                             },
                             {
                                 "tags": {"filter": "default"},
@@ -72,8 +72,8 @@
                     "name": "split by app_id",
                     "function": "splitby",
                     "args": {
-                        "key": ["app_id"],
-                        "tags": {"app_id":"{data.app_id}","service":"dataspin"}
+                        "key": ["app_id", "event_name"],
+                        "tags": {"app_id":"{data.app_id}","service":"dataspin", "event_name":"{data.event_name}"}
                     }
                 },
                 {
@@ -101,28 +101,20 @@
                     }
                 },
                 {
+                    "name": "merge file by tag",
+                    "function": "merge",
+                    "args": {
+                        "tags": ["event_name"],
+                        "output_file_lines": 5000
+                    }
+                },
+                {
                     "name": "save to target",
                     "function": "save",
                     "args": {
                         "location": "simple_target",
                         "path_suffix": "{service}/filter={filter}/app_id={app_id}",
                         "table_name": "table"
-                    }
-                },
-                {
-                    "name": "merge file by tag",
-                    "function": "merge",
-                    "args": {
-                        "tags": ["app_id"],
-                        "output_file_lines": "100000"
-                    }
-                },
-                {
-                    "name": "merge file by path",
-                    "function": "merge",
-                    "args": {
-                        "path_suffix": "dataspin/app_id={app_id}/",
-                        "output_file_lines": "100000"
                     }
                 }
             ]
