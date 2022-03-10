@@ -17,7 +17,7 @@
     ],
     "data_processes":[
         {
-            "name": "fetch simple and save",
+            "name": "fetch_simple",
             "description": "",
             "source": "simple_source",
             "source_args": {

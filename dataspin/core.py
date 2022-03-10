@@ -331,10 +331,9 @@ class SpinEngine:
         self.storages = {}
         self.data_views = {}
         self.data_processes = {}
-        self.stop_scheduler_event, self.scheduler_thread = run_scheduler()
+        self.stop_scheduler_event = None
+        self.scheduler_thread = None
         self.load()
-        self.uuid = 'project_' + uuid_generator()
-        self.temp_dir_path = os.path.join(os.getcwd(), self.uuid)
         atexit.register(self.join)
 
     @property
@@ -369,7 +368,14 @@ class SpinEngine:
         for process_name, process in self.data_processes.items():
             process.run()
 
+    def run_process(self, name):
+        if name not in self.data_processes:
+            raise Exception(f'Named {name} data process not found.')
+        process = self.data_processes[name]
+        process.run()
+
     def start(self):
+        self.stop_scheduler_event, self.scheduler_thread = run_scheduler()
         for _, process in self.data_processes.items():
             process.start()
 
@@ -377,6 +383,7 @@ class SpinEngine:
         process_fn()
 
     def join(self):
-        self.stop_scheduler_event.set()
-        time.sleep(3)
-        self.scheduler_thread.join()
+        if self.stop_scheduler_event:
+            self.stop_scheduler_event.set()
+            time.sleep(3)
+            self.scheduler_thread.join()
