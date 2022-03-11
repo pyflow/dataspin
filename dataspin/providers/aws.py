@@ -1,10 +1,13 @@
 import gzip
 from io import BytesIO
 import json
+import tempfile
 import traceback
 import boto3
 
 from basepy.log import logger
+
+from dataspin.message.message import StreamMessage
 
 
 class SQSStreamProvider:
@@ -23,27 +26,40 @@ class SQSStreamProvider:
             message = message_list[0]
             self._pendding_message.append(message)
             body = json.loads(message.body)
-            try:
-                records = body['Records']
-            except KeyError:  # 测试数据可能会没有Records字段
-                logger.error('test data do not contain Records field')
-            else:
-                record = records[0]
-                try:
-                    s3 = record['s3']
-                    bucket = s3['bucket']['name']
-                    key = s3['object']['key']
-                    return bucket + '/' + key
-                except Exception as e:
-                    logger.error('parse sqs record error, error: {},record: {}\ntraceback:{}'.
-                                 format(e, record, traceback.format_exc()))
+            if body.get('data_format') == 'dataspin':
+                return self._parse_dataspin((body))
+            return self._parse_s3_message(body)
+        return None
 
-    def send_message(self, bucket, key):
-        body = {'Records': []}
-        record = {'s3': {'bucket': {}, 'object': {}}}
-        record['s3']['bucket']['name'] = bucket
-        record['s3']['object']['key'] = key
-        body['Records'].append(record)
+    def _parse_s3_message(self,body):
+        try:
+            records = body['Records']
+        except KeyError:  # 测试数据可能会没有Records字段
+            logger.error('test data do not contain Records field')
+        else:
+            record = records[0]
+            try:
+                s3 = record['s3']
+                bucket = s3['bucket']['name']
+                key = s3['object']['key']
+                return StreamMessage('s3',bucket,key,None)
+            except Exception as e:
+                logger.error('parse sqs record error, error: {},record: {}\ntraceback:{}'.
+                                format(e, record, traceback.format_exc()))
+                raise e
+    
+    def _parse_dataspin(self,body):
+        record = body['record']
+        tags = body.get('tags')
+        return StreamMessage(record['storage_type'],record['bucket'],record['key'],tags)
+
+    def send_message(self, message:StreamMessage):
+        body = {'data_format': 'dataspin',
+                'record': {
+                    'bucket': message.bucket,
+                    'key': message.key,
+                    'storage_type': message.storage_type},
+                'tags': message.tags}
         logger.debug('send sqs message body',body=body)
         self._queue.send_message(MessageBody=json.dumps(body))
 
@@ -64,6 +80,10 @@ class S3StorageProvider:
         self._bucket, self._prefix = path.split('/', 1)
 
     @property
+    def storage_type(self):
+        return 's3'
+        
+    @property
     def path(self):
         return self._path
 
@@ -72,6 +92,13 @@ class S3StorageProvider:
         for res in paginator.paginate(Bucket=self._bucket, Prefix=self._prefix):
             for item in res.get("Contents", []):
                 yield self._bucket+'/'+item['Key']
+
+    def fetch_file(self,file_path):
+        bucket ,key = file_path.split('/',1)
+        with tempfile.TemporaryFile('w+b') as fp:
+            self._s3_client.download_fileobj(bucket, key, fp)
+            fp.seek(0)
+            yield fp
 
     def save(self, key, local_file):
         key = self._prefix + '/' + key

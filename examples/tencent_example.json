@@ -4,22 +4,19 @@
     },
     "streams" : [
         {
-            "name": "sqs_source_data",
+            "name": "tdmq_source_data",
             "data_format": "dataspin",
-            "url": "sqs://./sqs_name?access_key=access_key&secret_key=secret_key&region=regoin_name"
+            "url": "tdmq://service_url?topic=topic&token=token&subscription_name=subscription_name"
         },{
-            "name": "sqs_target_data",
+            "name": "tdmq_target_data",
             "data_format": "dataspin",
-            "url": "sqs://./sqs_name?access_key=access_key&secret_key=secret_key&region=regoin_name"
+            "url": "tdmq://service_url?topic=topic&token=token&subscription_name=subscription_name"
         }
     ],
     "storages": [
         {
             "name": "simple_target",
-            "url": "s3://./bucket/prefix?access_key=access_key&secret_key=secret_key&region=regoin_name"
-        },{
-            "name": "file_target",
-            "url": "s3://./bucket/prefix?access_key=access_key&secret_key=secret_key&region=regoin_name"
+            "url": "cos://./bucket/prefix?access_key=access_key&secret_key=secret_key&region=regoin_name"
         }
     ],
     "data_views":[
@@ -50,7 +47,7 @@
         {
             "name": "split and build index",
             "description": "",
-            "source": "sqs_source_data",
+            "source": "tdmq_source_data",
             "processes":[
                 {
                     "name":"split by app_id",

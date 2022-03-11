@@ -1,7 +1,7 @@
 import os
 import datetime
 import random
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 import json
 from typing import Any
 
@@ -72,6 +72,15 @@ def parse_scheme(scheme):
     else:
         return None, settings[0]
 
+def parse_url(url):
+    parsed = urlparse(url)
+    params = dict(host=parsed.netloc, name=os.path.basename(parsed.path))
+    for key, value in parse_qsl(parsed.query):
+        if key not in params:
+            params[key] = value
+    options, platform = parse_scheme(parsed.scheme)
+    path = parsed.path
+    return platform,path,params,options
 
 def scantree(path):
     """Recursively yield DirEntry objects for given directory."""
