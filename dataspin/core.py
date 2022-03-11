@@ -12,6 +12,7 @@ from dataspin.utils.schedule import add_schedule, run_scheduler
 from dataspin.functions import creat_function_with
 from basepy.log import logger
 from .project import ProjectConfig
+from .runner import ProcessJobRunner
 
 
 class DataSource:
@@ -385,9 +386,11 @@ class SpinManager:
         self.stop_scheduler_event = None
         self.scheduler_thread = None
         self.engines = {}
+        self.job_runner = ProcessJobRunner()
         atexit.register(self.join)
 
     def load_one(self, project_path):
+        project_path = os.path.abspath(project_path)
         if not os.path.exists(project_path):
             raise Exception(f"proejct path {project_path} not exists.")
         conf = ProjectConfig.load(project_path)
@@ -396,7 +399,7 @@ class SpinManager:
 
     def load_all(self, project_dir):
         project_paths = []
-        with os.scandir(project_dir) as it:
+        with os.scandir(os.path.abspath(project_dir)) as it:
             for entry in it:
                 if (not entry.name.startswith('.') and entry.is_file()
                         and entry.name.endwith('.json')):
@@ -411,13 +414,17 @@ class SpinManager:
         for project_path, engine in self.engines.items():
             for name, process in engine.data_processes.items():
                 process.start(partial(self.run_process, project_path, name))
+        self.job_runner.manage_loop()
 
     def run(self):
         for project_path, engine in self.engines.items():
             for name, process in engine.data_processes.items():
-                process.run()
+                #process.run()
+                self.job_runner.run(project_path, name)
+        self.job_runner.manage_loop(empty_exit=True)
 
     def run_process(self, project_path, name):
+        project_path = os.path.abspath(project_path)
         engine = self.engines.get(project_path)
         if not engine:
             raise Exception(f'project {project_path} not loaded.')
@@ -427,6 +434,7 @@ class SpinManager:
         process.run()
 
     def join(self):
+        self.job_runner.close()
         if self.stop_scheduler_event:
             self.stop_scheduler_event.set()
             time.sleep(3)
