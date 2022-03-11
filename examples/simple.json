@@ -64,7 +64,7 @@
                         "filter_rules": [
                             {
                                 "tags": {"filter": "specific"},
-                                "rule": "event_name == 'login' and app_id in ['APPIOXDKXIESP','APPOWLSLSDWLD']"
+                                "rule": "app_id in ['APPIOXDKXIESP','APPOWLSLSDWLD']"
                             },
                             {
                                 "tags": {"filter": "default"},
@@ -77,8 +77,8 @@
                     "name": "split by app_id",
                     "function": "splitby",
                     "args": {
-                        "key": ["app_id"],
-                        "tags": {"app_id":"{data.app_id}","service":"dataspin"}
+                        "key": ["app_id", "event_name"],
+                        "tags": {"app_id":"{data.app_id}","service":"dataspin", "event_name":"{data.event_name}"}
                     }
                 },
                 {
@@ -103,6 +103,14 @@
                             "app_id",
                             "event_id"
                         ]
+                    }
+                },
+                {
+                    "name": "merge file by tag",
+                    "function": "merge",
+                    "args": {
+                        "tags": ["event_name"],
+                        "output_file_lines": 5000
                     }
                 },
                 {
