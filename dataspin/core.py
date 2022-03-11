@@ -1,16 +1,14 @@
+import atexit
 import os
-import re
-from typing import Optional
 import time
 import tempfile
 import importlib
-import json
 from boltons.fileutils import atomic_save
 
 from dataspin.providers import get_provider
 from dataspin.utils.common import uuid_generator, marshal, format_timestring
+from dataspin.utils.schedule import add_schedule, run_scheduler
 from dataspin.functions import creat_function_with
-from multiprocessing import Process, Pool
 from basepy.log import logger
 
 
@@ -229,7 +227,7 @@ class DataTaskContext:
         logger.debug('set data files,', data_files=data_files)
         self.final_files = data_files
         self.files_history.append(data_files)
-    
+
     def create_data_file(self, file_path, file_type="table", data_format="jsonl",tags=None):
         datafile =  DataFile(file_path=file_path, file_type=file_type,tags=tags)
         datafile.data_format = data_format
@@ -250,8 +248,11 @@ class DataProcess:
         self.conf = conf
         self._name = conf.name
         self._source = conf.source
-        self._fetch_args = conf.fetch_args
+        self._source_args = conf.source_args
+        self._schedules = conf.schedules
         self.engine = engine
+        self.is_fetch_job = self._source in self.engine.sources
+        self.is_process_job = self._source in self.engine.streams
         self._task_list = []
         self._load()
 
@@ -260,6 +261,14 @@ class DataProcess:
             function_name = proc.function
             function = creat_function_with(function_name, proc.args)
             self._task_list.append(function)
+
+    def start(self):
+        if self.is_fetch_job and self._schedules:
+            for schedule_str in self._schedules:
+                add_schedule(schedule_str, self.run_in_pool)
+
+    def run_in_pool(self):
+        self.engine.run_data_process(self.run)
 
     def run(self):
         def append_or_extend(datafiles, newfile):
@@ -273,11 +282,11 @@ class DataProcess:
         run_id = uuid_generator('PR')
         temp_dir = os.path.join(self.engine.working_dir, run_id)
         os.makedirs(temp_dir, exist_ok=True)
-        if self._source in self.engine.sources:
+        if self.is_fetch_job:
             data_source = self.engine.sources.get(self._source)
             context = DataTaskContext(run_id, temp_dir, data_files=[], engine=self.engine)
-            stream = data_source.fetch(self._fetch_args, context)
-        elif self._source in self.engine.streams:
+            stream = data_source.fetch(self._source_args, context)
+        elif self.is_process_job:
             stream = self.engine.streams.get(self._source)
         else:
             raise Exception(f'source {self._source} is not specified.')
@@ -322,16 +331,16 @@ class DataProcess:
 class SpinEngine:
     def __init__(self, conf):
         self.conf = conf
-        # self.runner_pool = Pool(4)
         self.config = {}
         self.sources = {}
         self.streams = {}
         self.storages = {}
         self.data_views = {}
         self.data_processes = {}
+        self.stop_scheduler_event = None
+        self.scheduler_thread = None
         self.load()
-        self.uuid = 'project_' + uuid_generator()
-        self.temp_dir_path = os.path.join(os.getcwd(), self.uuid)
+        atexit.register(self.join)
 
     @property
     def working_dir(self):
@@ -363,11 +372,24 @@ class SpinEngine:
 
     def run(self):
         for process_name, process in self.data_processes.items():
-            self.run_process(process)
+            process.run()
 
-    def run_process(self, process):
+    def run_process(self, name):
+        if name not in self.data_processes:
+            raise Exception(f'Named {name} data process not found.')
+        process = self.data_processes[name]
         process.run()
-        # self.runner_pool.apply_async(process.run)
+
+    def start(self):
+        self.stop_scheduler_event, self.scheduler_thread = run_scheduler()
+        for _, process in self.data_processes.items():
+            process.start()
+
+    def run_data_process(self, process_fn):
+        process_fn()
 
     def join(self):
-        self.runner_pool.join()
+        if self.stop_scheduler_event:
+            self.stop_scheduler_event.set()
+            time.sleep(3)
+            self.scheduler_thread.join()
