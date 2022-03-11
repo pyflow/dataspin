@@ -17,8 +17,6 @@ from dataspin.functions import creat_function_with
 from basepy.log import logger
 from .project import ProjectConfig
 
-from dataspin.utils.file import DataFileReader
-
 
 class DataSource:
     @classmethod
