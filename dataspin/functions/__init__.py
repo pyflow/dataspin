@@ -9,7 +9,8 @@ function_class_map = {
     'flatten': FlattenFunction,
     'format': FormatFunction,
     'deduplicate': DeduplicateFunction,
-    'filter': FilterFunction
+    'filter': FilterFunction,
+    'merge': MergeFunction
 }
 
 def creat_function_with(name: str, args):
