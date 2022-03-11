@@ -1,4 +1,5 @@
 import atexit
+from functools import partial
 import os
 import time
 import tempfile
@@ -10,6 +11,7 @@ from dataspin.utils.common import uuid_generator, marshal, format_timestring
 from dataspin.utils.schedule import add_schedule, run_scheduler
 from dataspin.functions import creat_function_with
 from basepy.log import logger
+from .project import ProjectConfig
 
 
 class DataSource:
@@ -256,13 +258,12 @@ class DataProcess:
             function = creat_function_with(function_name, proc.args)
             self._task_list.append(function)
 
-    def start(self):
-        if self.is_fetch_job and self._schedules:
+    def start(self, callback_fn):
+        if self._schedules:
             for schedule_str in self._schedules:
-                add_schedule(schedule_str, self.run_in_pool)
-
-    def run_in_pool(self):
-        self.engine.run_data_process(self.run)
+                add_schedule(schedule_str, callback_fn)
+        else:
+            callback_fn()
 
     def run(self):
         def append_or_extend(datafiles, newfile):
@@ -334,7 +335,6 @@ class SpinEngine:
         self.stop_scheduler_event = None
         self.scheduler_thread = None
         self.load()
-        atexit.register(self.join)
 
     @property
     def working_dir(self):
@@ -379,8 +379,52 @@ class SpinEngine:
         for _, process in self.data_processes.items():
             process.start()
 
-    def run_data_process(self, process_fn):
-        process_fn()
+
+class SpinManager:
+    def __init__(self):
+        self.stop_scheduler_event = None
+        self.scheduler_thread = None
+        self.engines = {}
+        atexit.register(self.join)
+
+    def load_one(self, project_path):
+        if not os.path.exists(project_path):
+            raise Exception(f"proejct path {project_path} not exists.")
+        conf = ProjectConfig.load(project_path)
+        engine = SpinEngine(conf)
+        self.engines[project_path] = engine
+
+    def load_all(self, project_dir):
+        project_paths = []
+        with os.scandir(project_dir) as it:
+            for entry in it:
+                if (not entry.name.startswith('.') and entry.is_file()
+                        and entry.name.endwith('.json')):
+                    project_paths.append(entry.path)
+
+        for project_path in project_paths:
+            self.load_one(project_path)
+
+
+    def start(self):
+        self.stop_scheduler_event, self.scheduler_thread = run_scheduler()
+        for project_path, engine in self.engines.items():
+            for name, process in engine.data_processes.items():
+                process.start(partial(self.run_process, project_path, name))
+
+    def run(self):
+        for project_path, engine in self.engines.items():
+            for name, process in engine.data_processes.items():
+                process.run()
+
+    def run_process(self, project_path, name):
+        engine = self.engines.get(project_path)
+        if not engine:
+            raise Exception(f'project {project_path} not loaded.')
+        if name not in engine.data_processes:
+            raise Exception(f'Named {name} data process not found.')
+        process = engine.data_processes[name]
+        process.run()
 
     def join(self):
         if self.stop_scheduler_event:
