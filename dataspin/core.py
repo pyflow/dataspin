@@ -5,9 +5,13 @@ import time
 import tempfile
 import importlib
 from boltons.fileutils import atomic_save
+from dataspin.message.message import LocalStreamMessage, StreamMessage
 
-from dataspin.providers import get_provider_class, get_provider
-from dataspin.utils.common import uuid_generator, marshal, format_timestring
+from dataspin.providers import get_provider
+from dataspin.utils.file import DataFileReader
+from dataspin.utils.schedule import add_schedule, run_scheduler
+from dataspin.utils.common import uuid_generator, marshal, format_timestring,parse_url
+from dataspin.providers import get_provider
 from dataspin.utils.schedule import add_schedule, run_scheduler
 from dataspin.functions import creat_function_with
 from basepy.log import logger
@@ -77,12 +81,26 @@ class DataStream:
         return self._provider
 
     def get(self, context, block=True, timeout=None):
-        file_path = self.provider.get(block=block, timeout=timeout)
-        logger.debug('stream get function got', file_path=file_path)
-        if file_path:
-            context.init_data_files([DataFile(file_path=file_path)])
+        message = self.provider.get(block=block, timeout=timeout)
+        logger.debug('stream get function got%s'%message)
+        if message:
+            if type(message) == LocalStreamMessage:
+                context.init_data_files([DataFile(file_path=message.file_path)])
+            elif type(message) == StreamMessage:
+                path = message.bucket + '/' + message.key
+                logger.debug('fetch stream path',path=path)
+                provider = context.get_storage_provider(message.storage_type,path)
+                context.init_data_files([DataFile(file_path=path,
+                    tags=message.tags,
+                    provider=provider)])
+            else:
+                raise Exception('Not support Message Type')
             return context
         return None
+    
+    def send_to_stream(self,file_path:str,tags=None,storage_type=None):
+        bucket,key = file_path.split('/',1)
+        self._provider.send_message(StreamMessage(storage_type,bucket,key,tags))
 
     def get_nowait(self):
         return self.get(block=False)
@@ -133,12 +151,18 @@ class ObjectStorage:
     def provider(self):
         return self._provider
 
+    @property
+    def storage_type(self):
+        return self._provider.storage_type
+
     def save(self, key, local_file):
-        self.provider.save(key, local_file)
+        return self.provider.save(key, local_file)
 
     def save_data(self, key, lines):
-        self.provider.save_data(key, lines)
+        return self.provider.save_data(key, lines)
 
+    def fetch_file(self,path):
+        return self.provider.fetch_file(path)
 
 class DataView:
     field_type_mapping = {
@@ -167,7 +191,7 @@ class DataFunction:
 
 
 class DataFile:
-    def __init__(self, file_path, file_type="table",tags = None):
+    def __init__(self, file_path, file_type="table",tags = None,provider=None):
         self.name, self.ext = os.path.splitext(os.path.basename(file_path))
         if self.ext in ['.gz']:
             self.name, ext = os.path.splitext(self.name)
@@ -176,10 +200,22 @@ class DataFile:
         self.file_type = file_type # table or index
         self.file_format = "jsonl" # can be jsonl, parquet
         self.tags = tags
+        self.provider = provider
 
     @property
     def basename(self):
         return '{}{}'.format(self.name, self.ext)
+
+    def readlines(self):
+        if not self.provider:
+            file_reader = DataFileReader(file_path=self.file_path,ext=self.ext)
+            for (data, line) in file_reader.readlines():
+                yield data,line
+        else:
+            for file in self.provider.fetch_file(self.file_path):
+                file_reader = DataFileReader(file=file,ext=self.ext)
+                for (data, line) in file_reader.readlines():
+                    yield data,line
 
 
 class DataTaskContext:
@@ -238,6 +274,16 @@ class DataTaskContext:
 
     def get_data_view(self, name):
         return self.engine.data_views.get(name)
+
+    def get_storage_provider(self,storage_type,path:str):
+        logger.debug('storages_info',storages_info=self.engine.storages_info)
+        for storage_info in self.engine.storages_info:
+            auth_info = storage_info['auth_info']
+            if auth_info['storage_type'] != storage_type:
+                continue
+            if path.startswith(auth_info['path']):
+                return storage_info['storage'].provider
+        return None
 
 
 class DataProcess:
@@ -329,6 +375,7 @@ class SpinEngine:
         self.conf = conf
         self.config = {}
         self.sources = {}
+        self.storages_info = []
         self.streams = {}
         self.storages = {}
         self.data_views = {}
@@ -356,7 +403,19 @@ class SpinEngine:
             self.streams[stream.name] = DataStream(stream)
 
         for storage in conf.storages:
-            self.storages[storage.name] = ObjectStorage(storage)
+            obj = ObjectStorage(storage)
+            self.storages[storage.name] = obj
+            platform,path,params,options = parse_url(storage.url)
+            self.storages_info.append({
+                'auth_info':{
+                    'storage_type':platform,
+                    'path':path.strip('/'),
+                    'access_key':params['access_key'],
+                    'secret_key':params['secret_key'],
+                    'region':params['region']
+                },
+                'storage':obj
+            })
 
         for data_view in conf.data_views:
             self.data_views[data_view.name] = DataView(data_view)

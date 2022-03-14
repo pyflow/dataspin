@@ -7,6 +7,11 @@
             "name": "local_simple_data",
             "data_format": "dataspin",
             "url": "watch+local://./tmp/source"
+        },
+        {
+            "name": "sqs_simple_data",
+            "data_format": "dataspin",
+            "url": "watch+local://./tmp/source"
         }
     ],
     "storages": [
@@ -114,7 +119,8 @@
                     "args": {
                         "location": "simple_target",
                         "path_suffix": "{service}/filter={filter}/app_id={app_id}",
-                        "table_name": "table"
+                        "table_name": "table",
+                        "trigger_stream": "sqs_simple_data"
                     }
                 }
             ]

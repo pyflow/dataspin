@@ -1,0 +1,90 @@
+{
+    "dataspin": {
+        "working_dir": "./tmp/working"
+    },
+    "streams" : [
+        {
+            "name": "tdmq_source_data",
+            "data_format": "dataspin",
+            "url": "tdmq://service_url?topic=topic&token=token&subscription_name=subscription_name"
+        },{
+            "name": "tdmq_target_data",
+            "data_format": "dataspin",
+            "url": "tdmq://service_url?topic=topic&token=token&subscription_name=subscription_name"
+        }
+    ],
+    "storages": [
+        {
+            "name": "simple_target",
+            "url": "cos://./bucket/prefix?access_key=access_key&secret_key=secret_key&region=regoin_name"
+        }
+    ],
+    "data_views":[
+        {
+            "name": "table",
+            "table_format": "jsonl",
+            "fields": [
+                {
+                    "name": "app_id",
+                    "type": "string"
+                },
+                {
+                    "name": "event_name",
+                    "type": "string"
+                },
+                {
+                    "name": "event_id",
+                    "type": "string"
+                },
+                {
+                    "name": "bp_timestamp",
+                    "type": "date"
+                }
+            ]
+        }
+    ],
+    "data_processes":[
+        {
+            "name": "split and build index",
+            "description": "",
+            "source": "tdmq_source_data",
+            "processes":[
+                {
+                    "name":"split by app_id",
+                    "function": "splitby",
+                    "args": {
+                        "key": ["app_id"],
+                        "tags": {"app_id":"{data.app_id}","service":"dataspin"}
+                    }
+                },
+                {
+                    "name": "build primary key index",
+                    "function": "pk_index",
+                    "args": {
+                        "key": ["app_id", "event_id"]
+                    }
+                },
+                {
+                    "name": "flatten json",
+                    "function": "flatten"
+                },
+                {
+                    "name": "deduplicate by event_id",
+                    "function": "deduplicate",
+                    "args": {
+                        "key": ["app_id","event_id"]
+                    }
+                },
+                {
+                    "name": "save to target",
+                    "function": "save",
+                    "args": {
+                        "location": "simple_target",
+                        "path_suffix": "{service}/app_id={app_id}",
+                        "trigger": "sqs_target_data"
+                    }
+                }
+            ]
+        }
+    ]
+}

@@ -15,7 +15,9 @@ install_requires = [
     'dataclass_factory',
     'jinja2',
     'boltons',
-    'parsy'
+    'parsy',
+    'pulsar-client==2.7.1',
+    'cos-python-sdk-v5==1.9.15'
 ]
 # pip install -e '.[test]'
 test_requires = [
@@ -45,7 +47,7 @@ setup(
     entry_points={
         'console_scripts': [
             'dataspin = dataspin.main:main',
-            'dataspin_testgen = dataspin.cli.test_data_generator:run',
+            'dataspin_testgen = dataspin.cli.test_data_generator:run'
         ],
     },
 )

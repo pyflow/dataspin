@@ -3,7 +3,6 @@ import os
 from basepy.log import logger
 
 from dataspin.utils import common
-from dataspin.utils.file import DataFileReader
 from boltons.fileutils import AtomicSaver, atomic_save
 import json
 from jinja2 import Environment, TemplateSyntaxError
@@ -56,8 +55,7 @@ class SplitByFunction(Function):
         split_keys = self.args['key']
         tags = self.args['tags']
         tags_with_group = {}
-        file_reader = DataFileReader(data_file.file_path)
-        for (data, line) in file_reader.readlines():
+        for (data, line) in data_file.readlines():
             group_names = []
             for split_key in split_keys:
                 group_name = data.get(split_key)
@@ -80,13 +78,15 @@ class SplitByFunction(Function):
         return data_files
 
 
-class SaveFunction(FunctionMultiMixin, Function):
+class SaveFunction(FunctionMultiMixin,Function):
     function_name = 'save'
 
     def process(self, data_file, context):
         logger.debug('save function process', data_file=data_file.file_path)
         location = self.args.get('location')
         path_suffix = self.args.get('path_suffix')
+        trigger = self.args.get('trigger')
+
         if path_suffix:
             path_suffix = path_suffix.format(**data_file.tags)
             if not path_suffix.endswith('/'):
@@ -95,7 +95,12 @@ class SaveFunction(FunctionMultiMixin, Function):
         if not storage:
             raise Exception('No storage defined.')
         key = path_suffix + data_file.basename if path_suffix else data_file.basename
-        storage.save(key, data_file.file_path)
+        path = storage.save(key, data_file.file_path)
+        if trigger:
+            stream = context.get_stream(trigger)
+            if not stream:
+                raise Exception('No stream defined.')
+            stream.send_to_stream(path,data_file.tags,storage.storage_type)
         return data_file
 
 
@@ -105,13 +110,11 @@ class PkIndexFunction(FunctionMultiMixin, Function):
     def process(self, data_file, context):
         logger.debug('index function process', data_file=data_file.file_path)
         index_key = self.args['key']
-        file_reader = DataFileReader(data_file.file_path)
         dst_path = os.path.join(context.temp_dir, f'{data_file.name}-pk-index.jsonl')
         file_saver = AtomicSaver(dst_path)
         file_saver.setup()
         index_set = set()
-
-        for (data, line) in file_reader.readlines():
+        for (data, line) in data_file.readlines():
             index_data = dict()
             for key in index_key:
                 index_data[key] = data.get(key)
@@ -134,10 +137,9 @@ class FlattenFunction(FunctionMultiMixin, Function):
             raise Exception('Not supported file type')
         if data_file.file_type == 'index':
             return data_file
-        file_reader = DataFileReader(data_file.file_path)
         dst_path = os.path.join(context.temp_dir, f'{data_file.name}-flatten.jsonl')
         with atomic_save(dst_path) as f:
-            for data, line in file_reader.readlines():
+            for data, line in data_file.readlines():
                 f.write(json.dumps(common.flatten_dict(data)).encode('utf-8'))
                 f.write(b'\n')
         return context.create_data_file(file_path = dst_path,tags = data_file.tags)
@@ -169,12 +171,11 @@ class FormatFunction(FunctionMultiMixin, Function):
 
         field_type_mapping = data_view.field_type_mapping
         fields = data_view.fields
-        file_reader = DataFileReader(data_file.file_path)
 
         dst_path = os.path.join(context.temp_dir, f'{data_file.name}-format.jsonl')
         file_saver = AtomicSaver(dst_path)
         file_saver.setup()
-        for (data, line) in file_reader.readlines():
+        for (data, line) in data_file.readlines():
             format_line = transform(data, fields, field_type_mapping)
             if format_line:
                 file_saver.part_file.write(format_line.encode('utf-8'))
@@ -190,11 +191,10 @@ class DeduplicateFunction(Function):
         if data_file.file_type == 'index':
             return data_file
         pks = self.args['key']
-        file_reader = DataFileReader(data_file.file_path)
         dst_path = os.path.join(context.temp_dir, f'{data_file.name}-deduplicate.jsonl')
         pk_values = set()
         with atomic_save(dst_path) as f:
-            for data, line in file_reader.readlines():
+            for data, line in data_file.readlines():
                 pk_value = []
                 for pk in pks:
                     pk_value.append(data[pk])
@@ -215,7 +215,6 @@ class FilterFunction(FunctionMultiMixin, Function):
         data_files = []
 
         rules_config = self.args.get('filter_rules', [])
-        file_reader = DataFileReader(data_file.file_path)
         for rule_config in rules_config:
             tags = rule_config.get('tags')
             rule = rule_config.get('rule', "False")
@@ -227,7 +226,7 @@ class FilterFunction(FunctionMultiMixin, Function):
             # compile expression by jinja2
             compiled_expr = Environment().compile_expression(rule)
 
-            for data, line in file_reader.readlines():
+            for data, line in data_file.readlines():
                 try:
                     filtered = compiled_expr(data)
                     if filtered:
@@ -284,8 +283,7 @@ class MergeFunction(FunctionMultiMixin, Function):
         file_saver = AtomicSaver(dst_path)
         file_saver.setup()
         for file in file_list:
-            file_reader = DataFileReader(file.file_path)
-            for (data, line) in file_reader.readlines():
+            for (data, line) in file.readlines():
                 file_saver.part_file.write(line.encode('utf-8'))
                 file_saver.part_file.write(b'\n')
                 if count >= self.file_size:
