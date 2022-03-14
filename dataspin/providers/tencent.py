@@ -64,10 +64,6 @@ class TDMQStreamProvider:
 
 class COSStorageProvider:
     def __init__(self, path=None, access_key=None, secret_key=None, region=None, **kwargs):
-        print('path=%s'%path)
-        print('access_key=%s'%access_key)
-        print('secret_key=%s'%secret_key)
-        print('region=%s'%region)
         config = CosConfig(Region=region, SecretId=access_key,
                            SecretKey=secret_key, Token=None, Scheme='https')
         self._client = CosS3Client(config)
