@@ -283,8 +283,7 @@ class MergeFunction(FunctionMultiMixin, Function):
         file_saver = AtomicSaver(dst_path)
         file_saver.setup()
         for file in file_list:
-            file_reader = DataFileReader(file.file_path)
-            for (data, line) in file_reader.readlines():
+            for (data, line) in file.readlines():
                 file_saver.part_file.write(line.encode('utf-8'))
                 file_saver.part_file.write(b'\n')
                 if count >= self.file_size:

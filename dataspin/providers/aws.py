@@ -6,7 +6,6 @@ import traceback
 import boto3
 
 from basepy.log import logger
-from dataspin.utils.common import parse_url_params, parse_s3_url
 
 from dataspin.message.message import StreamMessage
 

@@ -8,10 +8,10 @@ from boltons.fileutils import atomic_save
 from dataspin.message.message import LocalStreamMessage, StreamMessage
 
 from dataspin.providers import get_provider
+from dataspin.utils.file import DataFileReader
 from dataspin.utils.schedule import add_schedule, run_scheduler
 from dataspin.utils.common import uuid_generator, marshal, format_timestring,parse_url
 from dataspin.providers import get_provider
-from dataspin.utils.common import uuid_generator, marshal, format_timestring
 from dataspin.utils.schedule import add_schedule, run_scheduler
 from dataspin.functions import creat_function_with
 from basepy.log import logger
