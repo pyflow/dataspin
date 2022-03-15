@@ -34,7 +34,8 @@ class ProcessJobRunner(JobRunner):
             running_runners = list(filter(lambda x:x[0].returncode == None, self.runners))
             num = len(self.runners) - len(running_runners)
             if num > 0:
-                self.semaphore.release(num)
+                for i in range(num):
+                    self.semaphore.release()
             terminated_runner = set(self.runners) - set(running_runners)
             for runner, logfile in terminated_runner:
                 sys.stdout.write(''.join(logfile.tail()))
