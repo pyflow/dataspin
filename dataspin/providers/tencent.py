@@ -9,8 +9,6 @@ from qcloud_cos import CosConfig
 from qcloud_cos import CosS3Client
 from basepy.log import logger
 
-from dataspin.message.message import StreamMessage
-
 
 class TDMQStreamProvider:
 
@@ -22,40 +20,30 @@ class TDMQStreamProvider:
                                                 consumer_type=ConsumerType.Shared)
         self._producer = self._client.create_producer(topic=topic)
         self._pendding_message = []
-        
+
     def get(self, block=True, timeout=None):
         message = self._consumer.receive(timeout_millis=timeout)
         if message:
             self._pendding_message.append(message)
             body = json.loads(message.data())
             if body.get('data_format') == 'dataspin':
-                return self._parse_dataspin((body))
-            return self._parse_s3_message(body)
+                return body
+            else:
+                return self._transform_raw_cos(body)
         return None
 
-    def _parse_s3_message(self, body):
+    def _transform_raw_cos(self, body):
         try:
             bucket = body.get('cos').get('cosBucket').get('name')
             key = body.get('cos').get('cosObject').get('key')
-            return StreamMessage('cos', bucket, key, None)
+            return dict(file_url = f'cos://{bucket}{key}')
         except Exception as e:
             logger.error('read tdmq message error = %s' % repr(e))
             raise e
 
-    def _parse_dataspin(self, body):
-        record = body['record']
-        tags = body.get('tags')
-        return StreamMessage(record['storage_type'], record['bucket'], record['key'], tags)
-
-    def send_message(self, message: StreamMessage):
-        body = {'data_format': 'dataspin',
-                'record': {
-                    'bucket': message.bucket,
-                    'key': message.key,
-                    'storage_type': message.storage_type},
-                'tags': message.tags}
-        logger.debug('send tdmq message body', body=body)
-        self._producer.send(content=json.dumps(body).encode('utf-8'))
+    def send_message(self, message: dict):
+        logger.debug('send tdmq message body', body=message)
+        self._producer.send(content=json.dumps(message).encode('utf-8'))
 
     def task_done(self, file_path):
         message = self._pendding_message.pop()
@@ -77,7 +65,7 @@ class COSStorageProvider:
     @property
     def storage_type(self):
         return 'cos'
-        
+
     def get(self):
         marker = ''
         while True:

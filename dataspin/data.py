@@ -30,3 +30,28 @@ class DataFileMessage:
 
     def __str__(self) -> str:
         return json.dumps(asdict(self))
+
+    def to_dict(self):
+        return {
+            'data_format': 'dataspin',
+            'file_url': self.file_url,
+            'tags': self.tags
+        }
+
+    def marshal(self):
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def unmarshal(cls, content):
+        loaded = json.loads(content)
+        if 'data_format' in loaded and loaded['data_format'] == 'dataspin':
+            loaded.pop('data_format')
+            return cls(**loaded)
+        else:
+            raise Exception('can not unmarshal message to DataFileMessage')
+
+    @classmethod
+    def unmarshal_data(cls, data):
+        if 'data_format' in data:
+            data.pop('data_format')
+        return cls(**data)

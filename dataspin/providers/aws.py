@@ -7,7 +7,6 @@ import boto3
 
 from basepy.log import logger
 
-from dataspin.message.message import StreamMessage
 
 
 class SQSStreamProvider:
@@ -27,11 +26,12 @@ class SQSStreamProvider:
             self._pendding_message.append(message)
             body = json.loads(message.body)
             if body.get('data_format') == 'dataspin':
-                return self._parse_dataspin((body))
-            return self._parse_s3_message(body)
+                return body
+            else:
+                return self._transform_raw_s3(body)
         return None
 
-    def _parse_s3_message(self,body):
+    def _transform_raw_s3(self,body):
         try:
             records = body['Records']
         except KeyError:  # 测试数据可能会没有Records字段
@@ -42,26 +42,15 @@ class SQSStreamProvider:
                 s3 = record['s3']
                 bucket = s3['bucket']['name']
                 key = s3['object']['key']
-                return StreamMessage('s3',bucket,key,None)
+                return dict(file_url=f's3://{bucket}{key}')
             except Exception as e:
                 logger.error('parse sqs record error, error: {},record: {}\ntraceback:{}'.
                                 format(e, record, traceback.format_exc()))
                 raise e
-    
-    def _parse_dataspin(self,body):
-        record = body['record']
-        tags = body.get('tags')
-        return StreamMessage(record['storage_type'],record['bucket'],record['key'],tags)
 
-    def send_message(self, message:StreamMessage):
-        body = {'data_format': 'dataspin',
-                'record': {
-                    'bucket': message.bucket,
-                    'key': message.key,
-                    'storage_type': message.storage_type},
-                'tags': message.tags}
-        logger.debug('send sqs message body',body=body)
-        self._queue.send_message(MessageBody=json.dumps(body))
+    def send_message(self, message:dict):
+        logger.debug('send sqs message body',body=message)
+        self._queue.send_message(MessageBody=json.dumps(message))
 
     def task_done(self, file_path):
         message = self._pendding_message.pop()
@@ -82,7 +71,7 @@ class S3StorageProvider:
     @property
     def storage_type(self):
         return 's3'
-        
+
     @property
     def path(self):
         return self._path

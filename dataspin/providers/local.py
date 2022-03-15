@@ -2,7 +2,6 @@ import os
 import shutil
 from basepy.log import logger
 from boltons.fileutils import atomic_save
-from dataspin.message.message import LocalStreamMessage
 
 from dataspin.utils.common import scantree
 
@@ -35,8 +34,8 @@ class LocalStreamProvider:
             else:
                 #logger.debug('adding file to waiting list', file=file_path)
                 self.waiting_file_list.append(file_path)
-                
-    def send_message(self, message:LocalStreamMessage):
+
+    def send_message(self, message:dict):
         raise Exception('Local Stream not implement send message')
 
     def get(self, block=True, timeout=None):
@@ -46,15 +45,15 @@ class LocalStreamProvider:
         file_path = self.waiting_file_list.pop(0)
         if file_path:
             self.processing_file_list.append(file_path)
-            return LocalStreamMessage(file_path)
+            return dict(file_url=f'file://{file_path}')
         else:
             return None
-    
+
     def task_done(self, file_path):
         if file_path in self.processing_file_list:
             self.processing_file_list.remove(file_path)
             self.processed_file_list.append(file_path)
-                
+
 
 class LocalStorageProvider:
 
@@ -69,7 +68,7 @@ class LocalStorageProvider:
     @property
     def storage_type(self):
         return 'local'
-        
+
     def save(self, key, local_file):
         save_path = os.path.join(self._path, key)
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -77,7 +76,7 @@ class LocalStorageProvider:
 
     def fetch_file(self,file_path):
         yield file_path
-    
+
     def save_data(self, key, lines):
         save_path = os.path.join(self._path, key)
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
