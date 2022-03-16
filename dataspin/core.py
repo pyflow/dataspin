@@ -5,7 +5,7 @@ import time
 import tempfile
 import importlib
 from boltons.fileutils import atomic_save
-from dataspin.data import DataFileMessage
+from dataspin.data import AppSystemData, DataFileMessage
 
 from dataspin.providers import get_provider
 from dataspin.utils.file import DataFileReader
@@ -449,6 +449,7 @@ class SpinManager:
         self.scheduler_thread = None
         self.engines = {}
         self.job_runner = ProcessJobRunner()
+        self.sysdata = AppSystemData()
         atexit.register(self.join)
 
     def load_one(self, project_path):
