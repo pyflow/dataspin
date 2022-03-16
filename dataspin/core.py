@@ -8,7 +8,7 @@ import time
 import tempfile
 import importlib
 from boltons.fileutils import atomic_save
-from dataspin.message.message import LocalStreamMessage, StreamMessage
+from dataspin.data import DataFileMessage
 
 from dataspin.providers import get_provider
 from dataspin.utils.file import DataFileReader
@@ -86,26 +86,29 @@ class DataStream:
         return self._provider
 
     def get(self, context, block=True, timeout=None):
-        message = self.provider.get(block=block, timeout=timeout)
+        message_dict = self.provider.get(block=block, timeout=timeout)
+        message = DataFileMessage.unmarshal_data(message_dict)
         logger.debug('stream get function got%s'%message)
         if message:
-            if type(message) == LocalStreamMessage:
-                context.init_data_files([DataFile(file_path=message.file_path)])
-            elif type(message) == StreamMessage:
-                path = message.bucket + '/' + message.key
+            if message.storage_type == 'file':
+                context.init_data_files([DataFile(file_path=message.path)])
+            else:
+                path = message.bucket + '/' + message.path
                 logger.debug('fetch stream path',path=path)
                 provider = context.get_storage_provider(message.storage_type,path)
                 context.init_data_files([DataFile(file_path=path,
                     tags=message.tags,
                     provider=provider)])
-            else:
-                raise Exception('Not support Message Type')
             return context
         return None
-    
+
     def send_to_stream(self,file_path:str,tags=None,storage_type=None):
-        bucket,key = file_path.split('/',1)
-        self._provider.send_message(StreamMessage(storage_type,bucket,key,tags))
+        storage_scheme = storage_type or 'file'
+        if storage_type != 'file':
+            file_path = file_path.lstrip('/')
+        file_url = f'{storage_scheme}://{file_path}'
+        dm = DataFileMessage(file_url=file_url, tags=tags)
+        self._provider.send_message(dm.to_dict())
 
     def recover(self, processed_files, processing_files):
         self.provider.recover(processed_files, processing_files)
