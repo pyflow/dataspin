@@ -59,6 +59,6 @@ class SimpleSource(object):
         return cls.dataset_schemas.keys()
 
     def fetch(self, **kwargs):
-        datasets = kwargs.get('datasets', self.datasets())
+        datasets = kwargs.pop('datasets', self.datasets())
         sf = SimpleFetcher(datasets, **kwargs)
         return sf.fetch()

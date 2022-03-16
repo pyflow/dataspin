@@ -7,15 +7,17 @@ from setuptools import find_packages, setup
 install_requires = [
     'pytz>=2020.1',
     'pyarrow>=1.0.1',
-    'click==8.0.3',
+    'click',
     'pyRFC3339>=1.1',
-    'basepy>=0.3.5',
-    'redis>=3.5.3',
+    'basepy>=0.4a1',
     'boto3>=1.19.12',
+    'pendulum>=2.1.2'
     'dataclass_factory',
-    'schedule',
+    'jinja2',
     'boltons',
-    'parsy'
+    'parsy',
+    'pulsar-client==2.7.1',
+    'cos-python-sdk-v5==1.9.15'
 ]
 # pip install -e '.[test]'
 test_requires = [
@@ -45,7 +47,7 @@ setup(
     entry_points={
         'console_scripts': [
             'dataspin = dataspin.main:main',
-            'dataspin_testgen = dataspin.cli.test_data_generator:run',
+            'dataspin_testgen = dataspin.cli.test_data_generator:run'
         ],
     },
 )

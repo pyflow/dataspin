@@ -16,6 +16,7 @@ class FileMetaData:
     file_type: str
     file_format: str
     generation_time: datetime
+    tags: Optional[dict] = field(default_factory=dict)
 
     @classmethod
     def load(cls, meta_data):

@@ -1,11 +1,15 @@
-
 {
     "dataspin": {
         "working_dir": "./tmp/working"
     },
-    "streams" : [
+    "streams": [
         {
             "name": "local_simple_data",
+            "data_format": "dataspin",
+            "url": "watch+local://./tmp/source"
+        },
+        {
+            "name": "sqs_simple_data",
             "data_format": "dataspin",
             "url": "watch+local://./tmp/source"
         }
@@ -16,31 +20,106 @@
             "url": "file://./tmp/target/"
         }
     ],
-    "data_processes":[
+    "data_views": [
+        {
+            "name": "table",
+            "table_format": "jsonl",
+            "fields": [
+                {
+                    "name": "app_id",
+                    "type": "string"
+                },
+                {
+                    "name": "event_name",
+                    "type": "string"
+                },
+                {
+                    "name": "event_id",
+                    "type": "string"
+                },
+                {
+                    "name": "bp_timestamp",
+                    "type": "date"
+                }
+            ]
+        }
+    ],
+    "data_processes": [
         {
             "name": "split and build index",
             "description": "",
             "source": "local_simple_data",
-            "processes":[
+            "processes": [
                 {
-                    "name":"split by app_id",
+                    "name": "format by data_view",
+                    "function": "format",
+                    "args": {
+                        "table_name": "table"
+                    }
+                },
+                {
+                    "name": "filter",
+                    "function": "filter",
+                    "args": {
+                        "filter_rules": [
+                            {
+                                "tags": {"filter": "specific"},
+                                "rule": "app_id in ['APPIOXDKXIESP','APPOWLSLSDWLD']"
+                            },
+                            {
+                                "tags": {"filter": "default"},
+                                "rule": "True"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "split by app_id",
                     "function": "splitby",
                     "args": {
-                        "key": ["app_id"]
+                        "key": ["app_id", "event_name"],
+                        "tags": {"app_id":"{data.app_id}","service":"dataspin", "event_name":"{data.event_name}"}
                     }
                 },
                 {
                     "name": "build primary key index",
                     "function": "pk_index",
                     "args": {
-                        "key": ["app_id", "event_id"]
+                        "key": [
+                            "app_id",
+                            "event_id"
+                        ]
+                    }
+                },
+                {
+                    "name": "flatten json",
+                    "function": "flatten"
+                },
+                {
+                    "name": "deduplicate by event_id",
+                    "function": "deduplicate",
+                    "args": {
+                        "key": [
+                            "app_id",
+                            "event_id"
+                        ]
+                    }
+                },
+                {
+                    "name": "merge file by tag",
+                    "function": "merge",
+                    "args": {
+                        "tags": ["event_name"],
+                        "output_file_lines": 5000
                     }
                 },
                 {
                     "name": "save to target",
                     "function": "save",
                     "args": {
-                        "location": "simple_target"
+                        "location": "simple_target",
+                        "table_name": "table",
+                        "trigger_stream": "sqs_simple_data"
                     }
                 }
             ]

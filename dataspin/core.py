@@ -1,20 +1,27 @@
+import atexit
+from functools import partial
 import os
-import re
+import json
 import shutil
-from typing import Optional
 import datetime
+import time
 import tempfile
 import importlib
-import json
 from boltons.fileutils import atomic_save
+from dataspin.message.message import LocalStreamMessage, StreamMessage
 
-from dataspin.providers import get_provider_class, get_provider
-from dataspin.utils.common import uuid_generator, marshal
+from dataspin.providers import get_provider
+from dataspin.utils.file import DataFileReader
+from dataspin.utils.schedule import add_schedule, run_scheduler
+from dataspin.utils.common import uuid_generator, marshal, format_timestring,parse_url
+from dataspin.providers import get_provider
+from dataspin.utils.schedule import add_schedule, run_scheduler
 from dataspin.functions import creat_function_with
 from dataspin.meta import ContextMetaData, TaskMetaData, FileMetaData, factory
 from dataspin.utils.file import DataFileReader
-from multiprocessing import Process, Pool
 from basepy.log import logger
+from .project import ProjectConfig
+from .runner import ProcessJobRunner
 
 
 class DataSource:
@@ -79,12 +86,26 @@ class DataStream:
         return self._provider
 
     def get(self, context, block=True, timeout=None):
-        file_path = self.provider.get(block=block, timeout=timeout)
-        logger.debug('stream get function got', file_path=file_path)
-        if file_path:
-            context.init_data_files([DataFile(file_path=file_path)])
+        message = self.provider.get(block=block, timeout=timeout)
+        logger.debug('stream get function got%s'%message)
+        if message:
+            if type(message) == LocalStreamMessage:
+                context.init_data_files([DataFile(file_path=message.file_path)])
+            elif type(message) == StreamMessage:
+                path = message.bucket + '/' + message.key
+                logger.debug('fetch stream path',path=path)
+                provider = context.get_storage_provider(message.storage_type,path)
+                context.init_data_files([DataFile(file_path=path,
+                    tags=message.tags,
+                    provider=provider)])
+            else:
+                raise Exception('Not support Message Type')
             return context
         return None
+    
+    def send_to_stream(self,file_path:str,tags=None,storage_type=None):
+        bucket,key = file_path.split('/',1)
+        self._provider.send_message(StreamMessage(storage_type,bucket,key,tags))
 
     def recover(self, processed_files, processing_files):
         self.provider.recover(processed_files, processing_files)
@@ -138,11 +159,34 @@ class ObjectStorage:
     def provider(self):
         return self._provider
 
+    @property
+    def storage_type(self):
+        return self._provider.storage_type
+
     def save(self, key, local_file):
-        self.provider.save(key, local_file)
+        return self.provider.save(key, local_file)
 
     def save_data(self, key, lines):
-        self.provider.save_data(key, lines)
+        return self.provider.save_data(key, lines)
+
+    def fetch_file(self,path):
+        return self.provider.fetch_file(path)
+
+class DataView:
+    field_type_mapping = {
+        'string': str,
+        'int': int,
+        'float': float,
+        'boolean': bool,
+        'date': format_timestring
+    }
+
+    def __init__(self, conf):
+        self.conf = conf
+        self._name = conf.name
+        self._table_format = conf.table_format
+        self.fields = {field.name: field for field in conf.fields}
+
 
 
 class DataFunction:
@@ -156,7 +200,7 @@ class DataFunction:
 
 
 class DataFile:
-    def __init__(self, file_path, file_type="table"):
+    def __init__(self, file_path, file_type="table",tags = None,provider=None):
         self.name, self.ext = os.path.splitext(os.path.basename(file_path))
         if self.ext in ['.gz']:
             self.name, ext = os.path.splitext(self.name)
@@ -165,6 +209,8 @@ class DataFile:
         self.file_type = file_type  # table or index
         self.file_format = "jsonl"  # can be jsonl, parquet
         self.generation_time = datetime.datetime.now()
+        self.tags = tags
+        self.provider = provider
 
     @property
     def basename(self):
@@ -181,7 +227,20 @@ class DataFile:
 
     @classmethod
     def load(cls, meta_data):
-        return DataFile(file_path=meta_data.file_path)
+        return DataFile(file_path=meta_data.file_path,
+                        file_type=meta_data.file_type,
+                        tags=meta_data.tags)
+
+    def readlines(self):
+        if not self.provider:
+            file_reader = DataFileReader(file_path=self.file_path,ext=self.ext)
+            for (data, line) in file_reader.readlines():
+                yield data,line
+        else:
+            for file in self.provider.fetch_file(self.file_path):
+                file_reader = DataFileReader(file=file,ext=self.ext)
+                for (data, line) in file_reader.readlines():
+                    yield data,line
 
 
 class DataTaskContext:
@@ -192,6 +251,7 @@ class DataTaskContext:
         self.engine = kwargs['engine']
         self.task_order = 0
         self.meta = ContextMetaData.load(run_id, temp_dir) if kwargs.get('meta_data') is None else kwargs['meta_data']
+
 
     @property
     def data_file(self):
@@ -240,9 +300,10 @@ class DataTaskContext:
         source_task_meta.output_files.extend([FileMetaData.load(data_file.data) for data_file in data_files])
         self.meta.task_meta.append(source_task_meta)
 
-    def create_data_file(self, file_path, file_type="table", data_format="jsonl"):
-        datafile = DataFile(file_path=file_path, file_type=file_type)
-        datafile.data_format = data_format
+
+    def create_data_file(self, file_path, file_type="table", data_format="jsonl", tags=None):
+        datafile = DataFile(file_path=file_path, file_type=file_type,tags=tags)
+        datafile.file_format = data_format
         return datafile
 
     def get_storage(self, name):
@@ -287,6 +348,18 @@ class DataTaskContext:
             run_id = context_meta_data.run_id
             temp_dir = context_meta_data.temp_dir
             return DataTaskContext(run_id, temp_dir, engine=kwargs['engine'], meta_data=context_meta_data)
+
+    def get_data_view(self, name):
+        return self.engine.data_views.get(name)
+
+    def get_storage_provider(self,storage_type,path:str):
+        logger.debug('storages_info',storages_info=self.engine.storages_info)
+        for storage_info in self.engine.storages_info:
+            auth_info = storage_info['auth_info']
+            if auth_info['storage_type'] != storage_type:
+                continue
+            if path.startswith(auth_info['path']):
+                return storage_info['storage'].provider
         return None
 
 
@@ -295,8 +368,11 @@ class DataProcess:
         self.conf = conf
         self._name = conf.name
         self._source = conf.source
-        self._fetch_args = conf.fetch_args
+        self._source_args = conf.source_args
+        self._schedules = conf.schedules
         self.engine = engine
+        self.is_fetch_job = self._source in self.engine.sources
+        self.is_process_job = self._source in self.engine.streams
         self._task_list = []
         self._load()
 
@@ -328,6 +404,13 @@ class DataProcess:
 
         return DataTaskContext.recover_context(processing_ctx_meta_data, engine=kwargs.get('engine'))
 
+    def start(self, callback_fn):
+        if self._schedules:
+            for schedule_str in self._schedules:
+                add_schedule(schedule_str, callback_fn)
+        else:
+            callback_fn()
+
     def run(self, recover):
         def append_or_extend(datafiles, newfile):
             if not newfile:
@@ -341,11 +424,12 @@ class DataProcess:
         temp_dir = os.path.join(self.engine.working_dir, run_id)
         meta_temp_dir = os.path.join(self.engine.working_dir, 'meta')
 
-        if self._source in self.engine.sources:
+        os.makedirs(temp_dir, exist_ok=True)
+        if self.is_fetch_job:
             data_source = self.engine.sources.get(self._source)
-            context = DataTaskContext(run_id, temp_dir, engine=self.engine)
-            stream = data_source.fetch(self._fetch_args, context)
-        elif self._source in self.engine.streams:
+            context = DataTaskContext(run_id, temp_dir, data_files=[], engine=self.engine)
+            stream = data_source.fetch(self._source_args, context)
+        elif self.is_process_job:
             stream = self.engine.streams.get(self._source)
         else:
             raise Exception(f'source {self._source} is not specified.')
@@ -411,15 +495,16 @@ class DataProcess:
 class SpinEngine:
     def __init__(self, conf):
         self.conf = conf
-        # self.runner_pool = Pool(4)
         self.config = {}
         self.sources = {}
+        self.storages_info = []
         self.streams = {}
         self.storages = {}
+        self.data_views = {}
         self.data_processes = {}
+        self.stop_scheduler_event = None
+        self.scheduler_thread = None
         self.load()
-        self.uuid = 'project_' + uuid_generator('SE')
-        self.temp_dir_path = os.path.join(os.getcwd(), self.uuid)
 
     @property
     def working_dir(self):
@@ -440,7 +525,22 @@ class SpinEngine:
             self.streams[stream.name] = DataStream(stream)
 
         for storage in conf.storages:
-            self.storages[storage.name] = ObjectStorage(storage)
+            obj = ObjectStorage(storage)
+            self.storages[storage.name] = obj
+            platform,path,params,options = parse_url(storage.url)
+            self.storages_info.append({
+                'auth_info':{
+                    'storage_type':platform,
+                    'path':path.strip('/'),
+                    'access_key':params.get('access_key'),
+                    'secret_key':params.get('secret_key'),
+                    'region':params.get('region')
+                },
+                'storage':obj
+            })
+
+        for data_view in conf.data_views:
+            self.data_views[data_view.name] = DataView(data_view)
 
         for process_conf in conf.data_processes:
             data_process = DataProcess(process_conf, self)
@@ -448,11 +548,75 @@ class SpinEngine:
 
     def run(self, recover=False):
         for process_name, process in self.data_processes.items():
-            self.run_process(process, recover)
+            process.run(recover)
 
-    def run_process(self, process, recover):
+    def run_process(self, name, recover=False):
+        if name not in self.data_processes:
+            raise Exception(f'Named {name} data process not found.')
+        process = self.data_processes[name]
         process.run(recover)
-        # self.runner_pool.apply_async(process.run)
+
+    def start(self):
+        self.stop_scheduler_event, self.scheduler_thread = run_scheduler()
+        for _, process in self.data_processes.items():
+            process.start()
+
+
+class SpinManager:
+    def __init__(self):
+        self.stop_scheduler_event = None
+        self.scheduler_thread = None
+        self.engines = {}
+        self.job_runner = ProcessJobRunner()
+        atexit.register(self.join)
+
+    def load_one(self, project_path):
+        project_path = os.path.abspath(project_path)
+        if not os.path.exists(project_path):
+            raise Exception(f"proejct path {project_path} not exists.")
+        conf = ProjectConfig.load(project_path)
+        engine = SpinEngine(conf)
+        self.engines[project_path] = engine
+
+    def load_all(self, project_dir):
+        project_paths = []
+        with os.scandir(os.path.abspath(project_dir)) as it:
+            for entry in it:
+                if (not entry.name.startswith('.') and entry.is_file()
+                        and entry.name.endwith('.json')):
+                    project_paths.append(entry.path)
+
+        for project_path in project_paths:
+            self.load_one(project_path)
+
+
+    def start(self):
+        self.stop_scheduler_event, self.scheduler_thread = run_scheduler()
+        for project_path, engine in self.engines.items():
+            for name, process in engine.data_processes.items():
+                process.start(partial(self.run_process, project_path, name))
+        self.job_runner.manage_loop()
+
+    def run(self, recover=False):
+        for project_path, engine in self.engines.items():
+            for name, process in engine.data_processes.items():
+                #process.run()
+                self.job_runner.run(project_path, name, recover)
+        self.job_runner.manage_loop(empty_exit=True)
+
+    def run_process(self, project_path, name, recover=False):
+        project_path = os.path.abspath(project_path)
+        engine = self.engines.get(project_path)
+        if not engine:
+            raise Exception(f'project {project_path} not loaded.')
+        if name not in engine.data_processes:
+            raise Exception(f'Named {name} data process not found.')
+        process = engine.data_processes[name]
+        process.run(recover)
 
     def join(self):
-        self.runner_pool.join()
+        self.job_runner.close()
+        if self.stop_scheduler_event:
+            self.stop_scheduler_event.set()
+            time.sleep(3)
+            self.scheduler_thread.join()

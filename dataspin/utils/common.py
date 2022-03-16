@@ -1,9 +1,11 @@
 import os
 import datetime
 import random
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 import json
 from typing import Any
+
+import pendulum
 
 b32alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 
@@ -70,6 +72,15 @@ def parse_scheme(scheme):
     else:
         return None, settings[0]
 
+def parse_url(url):
+    parsed = urlparse(url)
+    params = dict(host=parsed.netloc, name=os.path.basename(parsed.path))
+    for key, value in parse_qsl(parsed.query):
+        if key not in params:
+            params[key] = value
+    options, platform = parse_scheme(parsed.scheme)
+    path = parsed.path
+    return platform,path,params,options
 
 def scantree(path):
     """Recursively yield DirEntry objects for given directory."""
@@ -99,3 +110,38 @@ def unmarshal(s: str) -> Any:
         The deserialized object or value.
     """
     return json.loads(s)
+
+def format_timestring(date_str) -> str:
+    return pendulum.parse(date_str).to_iso8601_string()
+
+
+def flatten_dict(data: dict, root_key='', delimiter='.'):
+    result = {}
+    for k, v in data.items():
+        k = k.strip()
+        key = k if not root_key else root_key + delimiter + k
+        if type(v) in [dict] and len(v) != 0:
+            result.update(flatten_dict(v, key, delimiter))
+        else:
+            result[key] = v
+    return result
+
+
+def inflate_dict(flatten_dict, delimiter='.'):
+    """
+    flatten_dict:{'a.b.c':10,'a.c.d':'value','a.b.e.f':True}
+    return :{"a": {"b": {"c": 10, "e": {"f": true}}, "c": {"d": "value"}}}
+    """
+    result = {}
+    for k, v in flatten_dict.items():
+        k_list = k.split(delimiter)
+        if len(k_list) == 1:
+            result[k] = v
+        else:
+            tmp = result
+            for l in k_list[:-1]:
+                if l not in tmp:
+                    tmp[l] = {}
+                tmp = tmp[l]
+            tmp[k_list[-1]] = v
+    return result
