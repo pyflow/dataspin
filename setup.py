@@ -12,12 +12,14 @@ install_requires = [
     'basepy>=0.4a1',
     'boto3>=1.19.12',
     'pendulum>=2.1.2'
-    'dataclass_factory',
+    'dataclass-factory',
     'jinja2',
     'boltons',
     'parsy',
-    'pulsar-client==2.7.1',
-    'cos-python-sdk-v5==1.9.15'
+    'sqlalchemy',
+    'psycopg2',
+    'pulsar-client>=2.7.1',
+    'cos-python-sdk-v5>=1.9.15'
 ]
 # pip install -e '.[test]'
 test_requires = [
