@@ -410,16 +410,17 @@ class SpinEngine:
             obj = ObjectStorage(storage)
             self.storages[storage.name] = obj
             platform,path,params,options = parse_url(storage.url)
-            self.storages_info.append({
-                'auth_info':{
-                    'storage_type':platform,
-                    'path':path.strip('/'),
-                    'access_key':params['access_key'],
-                    'secret_key':params['secret_key'],
-                    'region':params['region']
-                },
-                'storage':obj
-            })
+            if platform not in ["file", "local"]:
+                self.storages_info.append({
+                    'auth_info':{
+                        'storage_type':platform,
+                        'path':path.strip('/'),
+                        'access_key':params['access_key'],
+                        'secret_key':params['secret_key'],
+                        'region':params['region']
+                    },
+                    'storage':obj
+                })
 
         for data_view in conf.data_views:
             self.data_views[data_view.name] = DataView(data_view)
