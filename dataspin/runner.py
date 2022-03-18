@@ -18,8 +18,8 @@ class ProcessJobRunner(JobRunner):
         self.close_event = Event()
         self.runners = []
 
-    def run(self, project_path, dataprocess_name, recover):
-        cmd_args = [sys.executable, '-m', 'dataspin', 'run-process', project_path, dataprocess_name, str(recover)]
+    def run(self, project_path, dataprocess_name):
+        cmd_args = [sys.executable, '-m', 'dataspin', 'run-process', project_path, dataprocess_name]
         self.semaphore.acquire()
         fd, logfile = tempfile.mkstemp()
         # logfile_obj = open(logfile, 'ab')

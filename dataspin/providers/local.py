@@ -41,7 +41,8 @@ class LocalStreamProvider:
     def get(self, block=True, timeout=None):
         self._scan()
         if self.processing_file_list:
-            return self.processing_file_list[0]
+            file_path = self.processing_file_list[0]
+            return dict(file_url=f'file://{file_path}') if file_path else None
         if len(self.waiting_file_list) < 1:
             return None
         file_path = self.waiting_file_list.pop(0)

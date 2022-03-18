@@ -16,6 +16,7 @@ class FileMetaData:
     file_type: str
     file_format: str
     generation_time: datetime
+    md5: str
     tags: Optional[dict] = field(default_factory=dict)
 
     @classmethod
@@ -50,6 +51,7 @@ class TaskMetaData:
 
 @dataclass
 class ContextMetaData:
+    name: str
     run_id: str
     temp_dir: str
     start_time: datetime
@@ -58,11 +60,12 @@ class ContextMetaData:
     task_meta: Optional[List[TaskMetaData]] = field(default_factory=list)
 
     @classmethod
-    def load(cls, run_id=uuid_generator('FN'), temp_dir='', start_time=datetime.now(), end_time=datetime.now(), success_flag=False, meta_data=None):
+    def load(cls, name='', run_id=uuid_generator('FN'), temp_dir='', start_time=datetime.now(), end_time=datetime.now(), success_flag=False, meta_data=None):
         if meta_data:
             return factory.load(meta_data, cls)
         else:
-            data = {'run_id': run_id,
+            data = {'name': name,
+                    'run_id': run_id,
                     'temp_dir': temp_dir,
                     'start_time': str(start_time),
                     'end_time': str(end_time),

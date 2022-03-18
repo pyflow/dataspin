@@ -14,22 +14,20 @@ def main():
 
 @click.command()
 @click.argument("project", type=click.Path(exists=True))
-@click.argument("recover", type=click.BOOL)
 @click.pass_context
-def run(ctx, project, recover):
+def run(ctx, project):
     sm = SpinManager()
     sm.load_one(project)
-    sm.run(recover)
+    sm.run()
 
 @click.command()
 @click.argument("project", type=click.Path(exists=True))
 @click.argument("process_name", type=str)
-@click.argument("recover", type=click.BOOL)
 @click.pass_context
-def run_process(ctx, project, process_name, recover):
+def run_process(ctx, project, process_name):
     sm = SpinManager()
     sm.load_one(project)
-    sm.run_process(project, process_name, recover)
+    sm.run_process(project, process_name)
 
 
 @click.command()
@@ -48,10 +46,3 @@ def start(ctx, project):
 main.add_command(run)
 main.add_command(start)
 main.add_command(run_process)
-
-
-if __name__ == '__main__':
-
-    sm = SpinManager()
-    sm.load_one('/Users/yuze/Desktop/github_code/dataspin/examples/simple.json')
-    sm.run_process('/Users/yuze/Desktop/github_code/dataspin/examples/simple.json', 'split and build index', False)
