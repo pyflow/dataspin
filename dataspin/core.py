@@ -573,15 +573,15 @@ class SpinEngine:
             data_process = DataProcess(process_conf, self)
             self.data_processes[process_conf.name] = data_process
 
-    def run(self, recover=False):
+    def run(self):
         for process_name, process in self.data_processes.items():
-            process.run(recover)
+            process.run()
 
-    def run_process(self, name, recover=False):
+    def run_process(self, name):
         if name not in self.data_processes:
             raise Exception(f'Named {name} data process not found.')
         process = self.data_processes[name]
-        process.run(recover)
+        process.run()
 
     def start(self):
         self.stop_scheduler_event, self.scheduler_thread = run_scheduler()
