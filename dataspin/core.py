@@ -8,7 +8,8 @@ import time
 import tempfile
 import importlib
 from boltons.fileutils import atomic_save, iter_find_files
-from dataspin.data import DataFileMessage
+from dataspin.data import AppSystemData, DataFileMessage
+from dataspin.model import SystemDatabase
 
 from dataspin.providers import get_provider
 from dataspin.utils.file import DataFileReader
@@ -553,16 +554,17 @@ class SpinEngine:
             obj = ObjectStorage(storage)
             self.storages[storage.name] = obj
             platform,path,params,options = parse_url(storage.url)
-            self.storages_info.append({
-                'auth_info':{
-                    'storage_type':platform,
-                    'path':path.strip('/'),
-                    'access_key':params.get('access_key'),
-                    'secret_key':params.get('secret_key'),
-                    'region':params.get('region')
-                },
-                'storage':obj
-            })
+            if platform not in ["file", "local"]:
+                self.storages_info.append({
+                    'auth_info':{
+                        'storage_type':platform,
+                        'path':path.strip('/'),
+                        'access_key':params['access_key'],
+                        'secret_key':params['secret_key'],
+                        'region':params['region']
+                    },
+                    'storage':obj
+                })
 
         for data_view in conf.data_views:
             self.data_views[data_view.name] = DataView(data_view)
@@ -593,6 +595,8 @@ class SpinManager:
         self.scheduler_thread = None
         self.engines = {}
         self.job_runner = ProcessJobRunner()
+        self.sysdata = AppSystemData()
+        self.db = SystemDatabase()
         atexit.register(self.join)
 
     def load_one(self, project_path):
