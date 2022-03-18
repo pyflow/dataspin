@@ -1,0 +1,3 @@
+{
+    "db_url": "postgresql://dataspin:dataspin@localhost:5432/dataspin"
+}

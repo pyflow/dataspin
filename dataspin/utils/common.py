@@ -1,12 +1,12 @@
 import os
-import datetime
 import random
 from urllib.parse import parse_qsl, urlparse
 import json
 from typing import Any
-
 import pendulum
-
+import string
+import random
+from datetime import datetime
 b32alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 
 b32alphabet_dict = {}
@@ -17,12 +17,40 @@ for key in b32alphabet:
     init_value += 1
 
 DEFAULT_RANDOM_DIGITS = 15
-DEFAULT_SERVER_START_TIME = datetime.datetime(2019, 7, 12)
+DEFAULT_SERVER_START_TIME = datetime(2019, 7, 12)
 DEFAULT_UUID_LENGTH = 65
 DEFAULT_HIGH_LENGTH = 10
 DEFAULT_TIMESTAMP_LENGTH = 40
 
 B32_WORD_LENGTH = 5
+
+class IDGenerator(object):
+    shift_list = [35, 30, 25, 20, 15, 10, 5, 0]
+    charset = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+    @classmethod
+    def format_ts(cls):
+        now_ts = int(datetime.now().timestamp())
+        id_list = []
+        for n in cls.shift_list:
+            c = cls.charset[(now_ts >> n) & 31]
+            id_list.append(c)
+        assert len(id_list) == 8
+        return ''.join(id_list)
+
+
+
+def random_id(prefix, number=10):
+    assert len(prefix) == 2
+    generated = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(number))
+    return '{}{}'.format(prefix.upper(), generated)
+
+
+def time_random_id(prefix, number=6):
+    assert len(prefix) == 2
+    generated = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(number))
+    return '{}{}{}'.format(prefix.upper(), IDGenerator.format_ts(), generated)
+
 
 
 def parse_url_params(params: str):
@@ -56,7 +84,7 @@ def uuid_convert_to_str(uuid, total_digits=DEFAULT_UUID_LENGTH):
 def uuid_generator(high='AC', random_digits=DEFAULT_RANDOM_DIGITS):
     global b32alphabet_dict
     table_name = (b32alphabet_dict[high[0]] << 5) | (b32alphabet_dict[high[1]])
-    time_stamp = int((datetime.datetime.now() - DEFAULT_SERVER_START_TIME).total_seconds() * 1000)
+    time_stamp = int((datetime.now() - DEFAULT_SERVER_START_TIME).total_seconds() * 1000)
     rad_digits = random.randint(0, 2 ** random_digits - 1)
     uuid_int = (table_name << (DEFAULT_TIMESTAMP_LENGTH + random_digits)) | (time_stamp << random_digits) | rad_digits
     total_length = DEFAULT_HIGH_LENGTH + DEFAULT_TIMESTAMP_LENGTH + random_digits

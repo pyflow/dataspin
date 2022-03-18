@@ -3,7 +3,8 @@ from datetime import datetime
 from urllib.parse import urlparse
 import json
 from typing import Optional
-
+from pathlib import Path
+from .utils.common import random_id
 
 @dataclass
 class DataFileMessage:
@@ -55,3 +56,32 @@ class DataFileMessage:
         if 'data_format' in data:
             data.pop('data_format')
         return cls(**data)
+
+
+class AppSystemData:
+    def __init__(self):
+        self.data_dir = Path.home() /  '.dataspin'
+        self.data_file = self.data_dir / 'data.json'
+        self.data = {}
+        if self.data_dir.exists() and self.data_file.exists:
+            self.load()
+        else:
+            self.create()
+
+    @property
+    def node_id(self):
+        return self.data.get('node_id')
+
+    def load(self):
+        with self.data_file.open() as f:
+            self.data = json.loads(f.read())
+
+    def create(self):
+        self.data_dir.mkdir(exist_ok=True)
+        node_id = random_id('DN')
+        self.data = dict(node_id=node_id, created=datetime.now().isoformat())
+        self.save()
+        self.load()
+
+    def save(self):
+        self.data_file.write_text(json.dumps(self.data))
