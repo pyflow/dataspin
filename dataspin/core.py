@@ -18,7 +18,6 @@ from dataspin.utils.common import uuid_generator, marshal, format_timestring,par
 from dataspin.providers import get_provider
 from dataspin.utils.schedule import add_schedule, run_scheduler
 from dataspin.functions import creat_function_with
-from dataspin.meta import ContextMetaData, TaskMetaData, FileMetaData, factory
 from dataspin.utils.file import DataFileReader
 from basepy.log import logger
 from .project import ProjectConfig
@@ -138,6 +137,7 @@ class DataFileStream:
             return None
         data_file = self.data_files.pop(0)
         if data_file:
+            self.processing_data_files.append(data_file.file_path)
             context.init_data_files([data_file])
             return context
         return None
@@ -147,8 +147,12 @@ class DataFileStream:
 
     def task_done(self, context):
         data_file = context.data_file
-        if data_file in self.processing_data_files:
+        if data_file.file_path in self.processing_data_files:
             self.processing_data_files.remove(data_file)
+
+    def recover(self, processed_files, processing_files):
+        self.data_files = list(filter(lambda data_file: data_file.file_path not in processed_files, self.data_files))
+        self.processing_data_files.extend(processing_files)
 
 
 class ObjectStorage:
@@ -222,24 +226,22 @@ class DataFile:
     def basename(self):
         return '{}{}'.format(self.name, self.ext)
 
-    @property
-    def data(self):
+    def serialize(self):
         return {'name': self.name,
                 'ext': self.ext,
                 'file_path': self.file_path,
                 'file_type': self.file_type,
                 'file_format': self.file_format,
-                'generation_time': str(self.generation_time),
                 'md5': get_file_md5(self.file_path),
                 'tags': self.tags}
 
     @classmethod
-    def load(cls, meta_data):
-        if get_file_md5(meta_data.file_path) != meta_data.md5:
+    def deserialize(cls, meta):
+        if get_file_md5(meta['file_path']) != meta['md5']:
             return None
-        return DataFile(file_path=meta_data.file_path,
-                        file_type=meta_data.file_type,
-                        tags=meta_data.tags)
+        return DataFile(file_path=meta['file_path'],
+                        file_type=meta['file_type'],
+                        tags=meta['tags'])
 
     def readlines(self):
         if not self.provider:
@@ -261,10 +263,9 @@ class DataTaskContext:
         self.data_files = data_files
         self.final_files = data_files
         self.end_flag = False
-        self.files_history = []
+        self.task_process_history = []
         self.engine = kwargs['engine']
         self.task_order = 0
-        self.meta = ContextMetaData.load(name, run_id, temp_dir) if kwargs.get('meta_data') is None else kwargs['meta_data']
 
     @property
     def data_file(self):
@@ -293,22 +294,15 @@ class DataTaskContext:
     def init_data_files(self, data_files):
         self.data_files = data_files
         self.final_files = data_files
-        if len(self.meta.task_meta) < 1:
-            source_task_meta = TaskMetaData.load(function='source')
-            source_task_meta.success_flag = True
-            source_task_meta.input_files.extend([FileMetaData.load(data_file.data) for data_file in data_files])
-            source_task_meta.output_files.extend([FileMetaData.load(data_file.data) for data_file in data_files])
-            self.meta.task_meta.append(source_task_meta)
-        else:
-            logger.debug('recover final files from meta data')
-            self.final_files = [DataFile.load(file_meta_data) for file_meta_data in self.meta.task_meta[-1].output_files]
-            for task_meta_data in self.meta.task_meta[1:]:
-                self.files_history.extend([DataFile.load(file_meta_data) for file_meta_data in task_meta_data.output_files])
 
-    def set_data_files(self, data_files):
+    def set_data_files(self, data_files, task_name, task_function):
         logger.debug('set data files,', data_files=data_files)
         self.final_files = data_files
-        self.files_history.append(data_files)
+        self.task_process_history.append({
+            'name': task_name,
+            'function': task_function,
+            'output_files': data_files
+        })
 
     def create_data_file(self, file_path, file_type="table", data_format="jsonl", tags=None):
         datafile = DataFile(file_path=file_path, file_type=file_type,tags=tags)
@@ -321,44 +315,55 @@ class DataTaskContext:
     def get_stream(self, name):
         return self.engine.streams.get(name)
 
-    def create_task_meta(self, function, input_files=[]):
-        self.task_order += 1
-        task_meta = TaskMetaData.load(function=function)
-        task_meta.task_order = self.task_order
-        task_meta.input_files = [FileMetaData.load(data_file.data) for data_file in input_files]
-        self.meta.task_meta.append(task_meta)
-        return task_meta
-
     def end(self):
         self.end_flag = True
-        self.meta.end_time = datetime.datetime.now()
-        self.meta.success_flag = True
+
+    def serialize(self):
+        return {
+            'name': self.name,
+            'run_id': self.run_id,
+            'temp_dir': self.temp_dir,
+            'data_files': [data_file.serialize() for data_file in self.data_files],
+            'task_meta': [{
+                'name': task_process['name'],
+                'function': task_process['function'],
+                'output_files': [data_file.serialize() for data_file in task_process['output_files']]
+            } for task_process in self.task_process_history]
+        }
+
+    @classmethod
+    def deserialize(cls, meta, **kwargs):
+        name = meta['name']
+        run_id = meta['run_id']
+        temp_dir = meta['temp_dir']
+        data_files = [DataFile.deserialize(data_file_meta) for data_file_meta in meta['data_files']]
+        context = DataTaskContext(name, run_id, temp_dir, data_files=data_files, engine=kwargs['engine'])
+        context.final_files = [DataFile.deserialize(data_file_meta) for data_file_meta in meta['task_meta'][-1]['output_files']] if meta['task_meta'] else data_files
+        context.task_process_history = [
+            {'name': task_process['name'], 'function': task_process['function'], 'output_files': [DataFile.deserialize(data_file_meta) for data_file_meta in task_process['output_files']]}
+            for task_process in meta['task_meta']
+        ]
+        context.task_order = len(context.task_process_history)
+        return context
 
     def meta_save(self, dst_path, temporary=False):
-        serialized_meta = factory.dump(self.meta)
+        serialized_meta = self.serialize()
         logger.debug(str(serialized_meta))
         temporary_path = os.path.join(dst_path, '_temp')
         if temporary:
             os.makedirs(temporary_path, exist_ok=True)
-            file_path = os.path.join(temporary_path, 'meta_data.jsonl')
+            file_path = os.path.join(temporary_path, 'meta_data.json')
             with open(file_path, 'w') as f:
-                f.write(json.dumps(serialized_meta))
-                f.writelines('\n')
+                json.dump(serialized_meta, f)
         else:
-            file_path = os.path.join(dst_path, 'meta_data.jsonl')
-            with open(file_path, 'a') as f:
-                f.write(json.dumps(serialized_meta))
-                f.writelines('\n')
+            file_path = os.path.join(dst_path, 'meta_data.json')
+            serialized_meta_list = [serialized_meta]
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as f:
+                    serialized_meta_list.extend(json.load(f))
+            with open(file_path, 'w') as f:
+                json.dump(serialized_meta_list, f)
             shutil.rmtree(temporary_path, ignore_errors=True)
-
-    @classmethod
-    def recover_context(cls, context_meta_data, **kwargs):
-        if context_meta_data:
-            name = context_meta_data.name
-            run_id = context_meta_data.run_id
-            temp_dir = context_meta_data.temp_dir
-            return DataTaskContext(name, run_id, temp_dir, data_files=[], engine=kwargs['engine'], meta_data=context_meta_data)
-        return None
 
     def get_data_view(self, name):
         return self.engine.data_views.get(name)
@@ -393,39 +398,6 @@ class DataProcess:
             function = creat_function_with(function_name, proc.args)
             self._task_list.append(function)
 
-    def check_recover(self, stream, **kwargs):
-        for iter_dir in iter_find_files(self.engine.working_dir, 'PR*', include_dirs=True):
-            if not os.path.isdir(iter_dir):
-                continue
-
-            temp_meta_dir = os.path.join(iter_dir, 'meta/_temp/meta_data.jsonl')
-            if not os.path.exists(temp_meta_dir):
-                logger.debug(f'{iter_dir} succeed')
-                continue
-
-            logger.debug(f'{iter_dir} exists temp meta file')
-            processing_data_files = []
-            processing_meta_file_reader = DataFileReader(file_path=temp_meta_dir, ext='.jsonl')
-            for (meta_data, meta_data_line) in processing_meta_file_reader.readlines():
-                processing_ctx_meta = ContextMetaData.load(meta_data=meta_data)
-            if processing_ctx_meta.name != self.name:
-                continue
-            for data_file in processing_ctx_meta.task_meta[0].output_files:
-                processing_data_files.append(data_file.file_path)
-
-            meta_dir = os.path.exists(os.path.join(iter_dir, 'meta/meta_data.jsonl'))
-            processed_data_files = []
-            if os.path.exists(meta_dir):
-                processed_meta_file_reader = DataFileReader(file_path=meta_dir, ext='.jsonl')
-                for (meta_data, meta_data_line) in processed_meta_file_reader.readlines():
-                    processed_ctx_meta = ContextMetaData.load(meta_data=meta_data)
-                    processed_data_files.extend([data_file.file_path for data_file in processed_ctx_meta.task_meta[0].output_files])
-
-            stream.recover(processed_data_files, processing_data_files)
-            return DataTaskContext.recover_context(processing_ctx_meta, engine=self.engine), True
-
-        return None, False
-
     def start(self, callback_fn):
         if self._schedules:
             for schedule_str in self._schedules:
@@ -433,7 +405,7 @@ class DataProcess:
         else:
             callback_fn()
 
-    def run(self):
+    def run(self, recover_dir=None):
         def append_or_extend(datafiles, newfile):
             if not newfile:
                 return
@@ -442,43 +414,66 @@ class DataProcess:
             else:
                 datafiles.append(newfile)
 
-        name = self.name
-        run_id = uuid_generator('PR')
-        temp_dir = os.path.join(self.engine.working_dir, run_id)
+        if recover_dir:
+            temp_meta_dir = os.path.join(recover_dir, 'meta/_temp/meta_data.json')
+            with open(temp_meta_dir, 'r') as f:
+                temp_meta = json.load(f)
+            name = temp_meta['name']
+            run_id = temp_meta['run_id']
+            temp_dir = temp_meta['temp_dir']
+            context = DataTaskContext.deserialize(temp_meta, engine=self.engine)
 
-        if self.is_fetch_job:
-            os.makedirs(temp_dir, exist_ok=True)
-            data_source = self.engine.sources.get(self._source)
-            context = DataTaskContext(name, run_id, temp_dir, data_files=[], engine=self.engine)
-            stream = data_source.fetch(self._source_args, context)
-        elif self.is_process_job:
-            stream = self.engine.streams.get(self._source)
+            processing_data_files = [data_file.file_path for data_file in context.data_files]
+            processed_data_files = []
+            meta_dir = os.path.join(recover_dir, 'meta/meta_data.json')
+            if os.path.exists(meta_dir):
+                with open(meta_dir, 'r') as f:
+                    meta = json.load(f)
+                processed_data_files.extend([data_file_meta['file_path'] for data_file_meta in meta['data_files']])
+
+            if self.is_fetch_job:
+                os.makedirs(temp_dir, exist_ok=True)
+                data_source = self.engine.sources.get(self._source)
+                stream = data_source.fetch(self._source_args, context)
+            elif self.is_process_job:
+                stream = self.engine.streams.get(self._source)
+            else:
+                raise Exception(f'source {self._source} is not specified.')
+
+            stream.recover(processed_data_files, processing_data_files)
         else:
-            raise Exception(f'source {self._source} is not specified.')
+            name = self.name
+            run_id = uuid_generator('PR')
+            temp_dir = os.path.join(self.engine.working_dir, run_id)
 
-        context, recover = self.check_recover(stream)
+            if self.is_fetch_job:
+                os.makedirs(temp_dir, exist_ok=True)
+                data_source = self.engine.sources.get(self._source)
+                temp_context = DataTaskContext(name, run_id, temp_dir, data_files=[], engine=self.engine)
+                stream = data_source.fetch(self._source_args, temp_context)
+            elif self.is_process_job:
+                stream = self.engine.streams.get(self._source)
+            else:
+                raise Exception(f'source {self._source} is not specified.')
 
-        if recover:
-            run_id = context.run_id
-            temp_dir = context.temp_dir
         meta_temp_dir = os.path.join(temp_dir, 'meta')
-
         os.makedirs(temp_dir, exist_ok=True)
         os.makedirs(meta_temp_dir, exist_ok=True)
 
         while True:
-            # recover is False means no recovery required and create a new context
-            if recover is False or context is None:
+            # recover_dir is None means no recovery required and create a new context
+            if recover_dir:
+                recover_dir = None
+            else:
                 context = DataTaskContext(name, run_id, temp_dir, data_files=[], engine=self.engine)
+                if stream.get(context) is None:
+                    break
 
-            if stream.get(context) is None:
-                break
             if context.eof:
                 break
             context.meta_save(meta_temp_dir, temporary=True)
             logger.debug('handle task of source.', source_file=context.data_file.basename)
-            task_order = context.meta.task_meta[-1].task_order
-            for task in self.task_list[task_order:]:
+            for task in self.task_list[context.task_order:]:
                 logger.debug('handle task', task_name=task.name, task=task, data_file=context.final_file)
                 new_data_files = []
                 if context.single_file:
@@ -492,18 +487,12 @@ class DataProcess:
                         for data_file in context.final_files:
                             new_data_file = task.process(data_file, context)
                             append_or_extend(new_data_files, new_data_file)
-
-                task_meta = context.create_task_meta(task.name, context.final_files)
-                task_meta.end_time = datetime.datetime.now()
-                task_meta.success_flag = True
-                task_meta.output_files = [FileMetaData.load(data_file.data) for data_file in new_data_files]
+                context.set_data_files(new_data_files, task.name, task.function_name)
                 context.meta_save(meta_temp_dir, temporary=True)
-
-                context.set_data_files(new_data_files)
+                context.task_order += 1
             stream.task_done(context)
             context.end()
             context.meta_save(meta_temp_dir)
-            recover = False
 
     @property
     def name(self):
@@ -600,7 +589,6 @@ class SpinManager:
         atexit.register(self.join)
 
     def load_one(self, project_path):
-        project_path = os.path.abspath(project_path)
         if not os.path.exists(project_path):
             raise Exception(f"proejct path {project_path} not exists.")
         conf = ProjectConfig.load(project_path)
@@ -617,7 +605,6 @@ class SpinManager:
 
         for project_path in project_paths:
             self.load_one(project_path)
-
 
     def start(self):
         self.stop_scheduler_event, self.scheduler_thread = run_scheduler()
@@ -641,7 +628,8 @@ class SpinManager:
         if name not in engine.data_processes:
             raise Exception(f'Named {name} data process not found.')
         process = engine.data_processes[name]
-        process.run()
+        recover_dir = self.check_recover(process)
+        process.run(recover_dir)
 
     def join(self):
         self.job_runner.close()
@@ -649,3 +637,18 @@ class SpinManager:
             self.stop_scheduler_event.set()
             time.sleep(3)
             self.scheduler_thread.join()
+
+    def check_recover(self, process):
+        for iter_dir in iter_find_files(process.engine.working_dir, 'PR*', include_dirs=True):
+            if not os.path.isdir(iter_dir):
+                continue
+
+            temp_meta_dir = os.path.join(iter_dir, 'meta/_temp/meta_data.json')
+            if not os.path.exists(temp_meta_dir):
+                continue
+
+            with open(temp_meta_dir, 'r') as f:
+                temp_meta = json.load(f)
+                if temp_meta['name'] == process.name:
+                    return iter_dir
+        return None
