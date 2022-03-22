@@ -589,6 +589,7 @@ class SpinManager:
         atexit.register(self.join)
 
     def load_one(self, project_path):
+        project_path = os.path.abspath(project_path)
         if not os.path.exists(project_path):
             raise Exception(f"proejct path {project_path} not exists.")
         conf = ProjectConfig.load(project_path)
