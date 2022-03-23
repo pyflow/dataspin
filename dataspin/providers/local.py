@@ -54,7 +54,6 @@ class LocalStreamProvider:
             self.processing_file_list.remove(file_path)
             self.processed_file_list.append(file_path)
 
-
 class LocalStorageProvider:
 
     def __init__(self, path, options):
@@ -68,7 +67,7 @@ class LocalStorageProvider:
     @property
     def storage_type(self):
         return 'local'
-
+        
     def save(self, key, local_file):
         save_path = os.path.join(self._path, key)
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -76,7 +75,7 @@ class LocalStorageProvider:
 
     def fetch_file(self,file_path):
         yield file_path
-
+        
     def save_data(self, key, lines):
         save_path = os.path.join(self._path, key)
         os.makedirs(os.path.dirname(save_path), exist_ok=True)

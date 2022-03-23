@@ -86,7 +86,8 @@ def uuid_generator(high='AC', random_digits=DEFAULT_RANDOM_DIGITS):
     table_name = (b32alphabet_dict[high[0]] << 5) | (b32alphabet_dict[high[1]])
     time_stamp = int((datetime.now() - DEFAULT_SERVER_START_TIME).total_seconds() * 1000)
     rad_digits = random.randint(0, 2 ** random_digits - 1)
-    uuid_int = (table_name << (DEFAULT_TIMESTAMP_LENGTH + random_digits)) | (time_stamp << random_digits) | rad_digits
+    uuid_int = (table_name << (DEFAULT_TIMESTAMP_LENGTH + random_digits)
+                ) | (time_stamp << random_digits) | rad_digits
     total_length = DEFAULT_HIGH_LENGTH + DEFAULT_TIMESTAMP_LENGTH + random_digits
     return uuid_convert_to_str(uuid_int, total_length)
 
@@ -110,6 +111,7 @@ def parse_url(url):
     path = parsed.path
     return platform,path,params,options
 
+
 def scantree(path):
     """Recursively yield DirEntry objects for given directory."""
     for entry in os.scandir(path):
@@ -117,6 +119,7 @@ def scantree(path):
             yield from scantree(entry.path)  # see below for Python 2.x
         else:
             yield entry.path
+
 
 def marshal(d: Any) -> str:
     """
@@ -173,3 +176,15 @@ def inflate_dict(flatten_dict, delimiter='.'):
                 tmp = tmp[l]
             tmp[k_list[-1]] = v
     return result
+
+
+def convert_time_window_to_seconds(time_window: str):
+    """
+    time_window unit: d for day,h for hour,m for minute,s for second
+    """
+    time_unit = {'d': 24*60*60, 'h': 60*60, 'm': 60, 's': 1}
+    time_unit_key = time_window[(len(time_window)-1)]
+    time_unit_value = time_window.rstrip(time_unit_key)
+    if time_unit.get(time_unit_key):
+        return time_unit.get(time_unit_key) * int(time_unit_value)
+    return None

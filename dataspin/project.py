@@ -58,9 +58,17 @@ class ProcessFunctionConfig:
     args: Optional[dict] = field(default_factory=dict)
 
 @dataclass
+class IndexConfig:
+    source: str
+    time_window: str
+    index_pattern: str
+    index_keys: list
+
+@dataclass
 class DataProcessConfig:
     name: str
     source: str
+    index: IndexConfig
     description: Optional[str] = ""
     source_args: Optional[dict] = field(default_factory=dict)
     schedules: Optional[List[str]] = field(default_factory=list)
@@ -76,7 +84,7 @@ class ProjectConfig:
     pk_caches: Optional[List[PrimaryKeyCacheConfig]] = field(default_factory=list)
     webhooks: Optional[List[WebhookConfig]] = field(default_factory=list)
     data_processes: Optional[List[DataProcessConfig]] = field(default_factory=list)
-
+    
     @classmethod
     def load(cls, project_fp):
         factory = dataclass_factory.Factory()
