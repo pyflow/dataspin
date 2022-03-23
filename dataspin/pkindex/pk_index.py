@@ -40,11 +40,10 @@ class PKIndexCache:
     def _expire(self, current_data_file_key_timestamp):
         if not self._time_window:
             return
-        current_time = current_data_file_key_timestamp
-        if (current_time - self._baseline_time) >= self._time_window:
+        if (current_data_file_key_timestamp - self._baseline_time) >= self._time_window:
             self._cache = self._precache
             self._precache = set()
-            self._baseline_time = current_time
+            self._baseline_time = current_data_file_key_timestamp
 
     def is_exists(self, data: dict):
         """
