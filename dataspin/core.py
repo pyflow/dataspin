@@ -580,7 +580,7 @@ class SpinManager:
         self.engines = {}
         self.job_runner = ProcessJobRunner()
         self.sysdata = AppSystemData()
-        # self.db = SystemDatabase()
+        self.db = SystemDatabase()
         atexit.register(self.join)
 
     def load_one(self, project_path):
