@@ -57,10 +57,6 @@ class LocalStreamProvider:
             self.processing_file_list.remove(file_path)
             self.processed_file_list.append(file_path)
 
-    def recover(self, processed_files, processing_files):
-        self.processed_file_list.extend(processed_files)
-        self.processing_file_list.extend(processing_files)
-
 
 class LocalStorageProvider:
 

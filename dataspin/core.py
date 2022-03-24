@@ -112,9 +112,6 @@ class DataStream:
         dm = DataFileMessage(file_url=file_url, tags=tags)
         self._provider.send_message(dm.to_dict())
 
-    def recover(self, processed_files, processing_files):
-        self.provider.recover(processed_files, processing_files)
-
     def get_nowait(self):
         return self.get(block=False)
 
@@ -149,10 +146,6 @@ class DataFileStream:
         data_file = context.data_file
         if data_file.file_path in self.processing_data_files:
             self.processing_data_files.remove(data_file)
-
-    def recover(self, processed_files, processing_files):
-        self.data_files = list(filter(lambda data_file: data_file.file_path not in processed_files, self.data_files))
-        self.processing_data_files.extend(processing_files)
 
 
 class ObjectStorage:
@@ -405,7 +398,7 @@ class DataProcess:
         else:
             callback_fn()
 
-    def run(self, recover_dir=None):
+    def run(self):
         def append_or_extend(datafiles, newfile):
             if not newfile:
                 return
@@ -414,66 +407,31 @@ class DataProcess:
             else:
                 datafiles.append(newfile)
 
-        if recover_dir:
-            temp_meta_dir = os.path.join(recover_dir, 'meta/_temp/meta_data.json')
-            with open(temp_meta_dir, 'r') as f:
-                temp_meta = json.load(f)
-            name = temp_meta['name']
-            run_id = temp_meta['run_id']
-            temp_dir = temp_meta['temp_dir']
-            context = DataTaskContext.deserialize(temp_meta, engine=self.engine)
-
-            processing_data_files = [data_file.file_path for data_file in context.data_files]
-            processed_data_files = []
-            meta_dir = os.path.join(recover_dir, 'meta/meta_data.json')
-            if os.path.exists(meta_dir):
-                with open(meta_dir, 'r') as f:
-                    meta = json.load(f)
-                processed_data_files.extend([data_file_meta['file_path'] for data_file_meta in meta['data_files']])
-
-            if self.is_fetch_job:
-                os.makedirs(temp_dir, exist_ok=True)
-                data_source = self.engine.sources.get(self._source)
-                stream = data_source.fetch(self._source_args, context)
-            elif self.is_process_job:
-                stream = self.engine.streams.get(self._source)
-            else:
-                raise Exception(f'source {self._source} is not specified.')
-
-            stream.recover(processed_data_files, processing_data_files)
+        name = self.name
+        run_id = uuid_generator('PR')
+        temp_dir = os.path.join(self.engine.working_dir, run_id)
+        os.makedirs(temp_dir, exist_ok=True)
+        if self.is_fetch_job:
+            data_source = self.engine.sources.get(self._source)
+            context = DataTaskContext(name, run_id, temp_dir, data_files=[], engine=self.engine)
+            stream = data_source.fetch(self._source_args, context)
+        elif self.is_process_job:
+            stream = self.engine.streams.get(self._source)
         else:
-            name = self.name
-            run_id = uuid_generator('PR')
-            temp_dir = os.path.join(self.engine.working_dir, run_id)
-
-            if self.is_fetch_job:
-                os.makedirs(temp_dir, exist_ok=True)
-                data_source = self.engine.sources.get(self._source)
-                temp_context = DataTaskContext(name, run_id, temp_dir, data_files=[], engine=self.engine)
-                stream = data_source.fetch(self._source_args, temp_context)
-            elif self.is_process_job:
-                stream = self.engine.streams.get(self._source)
-            else:
-                raise Exception(f'source {self._source} is not specified.')
+            raise Exception(f'source {self._source} is not specified.')
 
         meta_temp_dir = os.path.join(temp_dir, 'meta')
-        os.makedirs(temp_dir, exist_ok=True)
         os.makedirs(meta_temp_dir, exist_ok=True)
 
         while True:
-            # recover_dir is None means no recovery required and create a new context
-            if recover_dir:
-                recover_dir = None
-            else:
-                context = DataTaskContext(name, run_id, temp_dir, data_files=[], engine=self.engine)
-                if stream.get(context) is None:
-                    break
-
+            context = DataTaskContext(name, run_id, temp_dir, data_files=[], engine=self.engine)
+            if stream.get(context) is None:
+                break
             if context.eof:
                 break
             context.meta_save(meta_temp_dir, temporary=True)
             logger.debug('handle task of source.', source_file=context.data_file.basename)
-            for task in self.task_list[context.task_order:]:
+            for task in self.task_list:
                 logger.debug('handle task', task_name=task.name, task=task, data_file=context.final_file)
                 new_data_files = []
                 if context.single_file:
@@ -493,6 +451,43 @@ class DataProcess:
             stream.task_done(context)
             context.end()
             context.meta_save(meta_temp_dir)
+
+    def recover(self, recover_dir):
+        def append_or_extend(datafiles, newfile):
+            if not newfile:
+                return
+            if isinstance(newfile, (list, tuple)):
+                datafiles.extend(newfile)
+            else:
+                datafiles.append(newfile)
+
+        temp_meta_dir = os.path.join(recover_dir, 'meta/_temp/meta_data.json')
+        with open(temp_meta_dir, 'r') as f:
+            temp_meta = json.load(f)
+        context = DataTaskContext.deserialize(temp_meta, engine=self.engine)
+
+        meta_temp_dir = os.path.join(recover_dir, 'meta')
+        os.makedirs(meta_temp_dir, exist_ok=True)
+
+        for task in self.task_list[context.task_order:]:
+            logger.debug('recover task', task_name=task.name, task=task, data_file=context.final_file)
+            new_data_files = []
+            if context.single_file:
+                new_data_file = task.process(context.final_file, context)
+                append_or_extend(new_data_files, new_data_file)
+            elif context.multi_files:
+                if hasattr(task, 'process_multi'):
+                    new_data_file = task.process_multi(context.final_files, context)
+                    append_or_extend(new_data_files, new_data_file)
+                else:
+                    for data_file in context.final_files:
+                        new_data_file = task.process(data_file, context)
+                        append_or_extend(new_data_files, new_data_file)
+            context.set_data_files(new_data_files, task.name, task.function_name)
+            context.meta_save(meta_temp_dir, temporary=True)
+            context.task_order += 1
+        context.end()
+        context.meta_save(meta_temp_dir)
 
     @property
     def name(self):
@@ -585,7 +580,7 @@ class SpinManager:
         self.engines = {}
         self.job_runner = ProcessJobRunner()
         self.sysdata = AppSystemData()
-        self.db = SystemDatabase()
+        # self.db = SystemDatabase()
         atexit.register(self.join)
 
     def load_one(self, project_path):
@@ -618,6 +613,9 @@ class SpinManager:
         for project_path, engine in self.engines.items():
             for name, process in engine.data_processes.items():
                 #process.run()
+                recover, recover_dir = self.check_recover(process)
+                if recover:
+                    self.job_runner.recover(project_path, name, recover_dir)
                 self.job_runner.run(project_path, name)
         self.job_runner.manage_loop(empty_exit=True)
 
@@ -629,8 +627,17 @@ class SpinManager:
         if name not in engine.data_processes:
             raise Exception(f'Named {name} data process not found.')
         process = engine.data_processes[name]
-        recover_dir = self.check_recover(process)
-        process.run(recover_dir)
+        process.run()
+
+    def recover_process(self, project_path, name, recover_path):
+        project_path = os.path.abspath(project_path)
+        engine = self.engines.get(project_path)
+        if not engine:
+            raise Exception(f'project {project_path} not loaded.')
+        if name not in engine.data_processes:
+            raise Exception(f'Named {name} data process not found.')
+        process = engine.data_processes[name]
+        process.recover(recover_path)
 
     def join(self):
         self.job_runner.close()
@@ -651,5 +658,5 @@ class SpinManager:
             with open(temp_meta_dir, 'r') as f:
                 temp_meta = json.load(f)
                 if temp_meta['name'] == process.name:
-                    return iter_dir
-        return None
+                    return True, iter_dir
+        return False, None

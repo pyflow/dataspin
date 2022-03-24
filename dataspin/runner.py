@@ -26,6 +26,14 @@ class ProcessJobRunner(JobRunner):
         p = subprocess.Popen(cmd_args, stdout=fd, stderr=fd)
         self.runners.append((p, FileTail(logfile)))
 
+    def recover(self, project_path, dataprocess_name, recover_path):
+        cmd_args = [sys.executable, '-m', 'dataspin', 'recover-process', project_path, dataprocess_name, recover_path]
+        self.semaphore.acquire()
+        fd, logfile = tempfile.mkstemp()
+        # logfile_obj = open(logfile, 'ab')
+        p = subprocess.Popen(cmd_args, stdout=fd, stderr=fd)
+        self.runners.append((p, FileTail(logfile)))
+
     def manage_loop(self, empty_exit=False):
         while not self.close_event.is_set():
             for p in self.runners:
