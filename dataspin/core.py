@@ -321,7 +321,8 @@ class DataTaskContext:
                 'name': task_process['name'],
                 'function': task_process['function'],
                 'output_files': [data_file.serialize() for data_file in task_process['output_files']]
-            } for task_process in self.task_process_history]
+            } for task_process in self.task_process_history],
+            'success_flag': self.end_flag
         }
 
     @classmethod
@@ -613,9 +614,10 @@ class SpinManager:
         for project_path, engine in self.engines.items():
             for name, process in engine.data_processes.items():
                 #process.run()
-                recover, recover_dir = self.check_recover(process)
+                recover, recover_dir_list = self.check_recover(process)
                 if recover:
-                    self.job_runner.recover(project_path, name, recover_dir)
+                    for recover_dir in recover_dir_list:
+                        self.job_runner.recover(project_path, name, recover_dir)
                 self.job_runner.run(project_path, name)
         self.job_runner.manage_loop(empty_exit=True)
 
@@ -647,16 +649,16 @@ class SpinManager:
             self.scheduler_thread.join()
 
     def check_recover(self, process):
+        recover_dir_list = []
         for iter_dir in iter_find_files(process.engine.working_dir, 'PR*', include_dirs=True):
             if not os.path.isdir(iter_dir):
                 continue
 
             temp_meta_dir = os.path.join(iter_dir, 'meta/_temp/meta_data.json')
-            if not os.path.exists(temp_meta_dir):
-                continue
+            if os.path.exists(temp_meta_dir):
+                with open(temp_meta_dir, 'r') as f:
+                    temp_meta = json.load(f)
+                    if temp_meta['name'] == process.name and temp_meta['success_flag'] is False:
+                        recover_dir_list.append(iter_dir)
 
-            with open(temp_meta_dir, 'r') as f:
-                temp_meta = json.load(f)
-                if temp_meta['name'] == process.name:
-                    return True, iter_dir
-        return False, None
+        return len(recover_dir_list) > 0, recover_dir_list
