@@ -1,3 +1,4 @@
+import hashlib
 import os
 import random
 from urllib.parse import parse_qsl, urlparse
@@ -173,3 +174,16 @@ def inflate_dict(flatten_dict, delimiter='.'):
                 tmp = tmp[l]
             tmp[k_list[-1]] = v
     return result
+
+
+def get_file_md5(file_path, cal_size=8192):
+    if not os.path.exists(file_path):
+        return ''
+    with open(file_path, "rb") as f:
+        file_md5 = hashlib.md5()
+        chunk = f.read(cal_size)
+        while chunk:
+            file_md5.update(chunk)
+            chunk = f.read(cal_size)
+    return file_md5.hexdigest()
+

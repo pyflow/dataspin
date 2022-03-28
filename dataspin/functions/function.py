@@ -133,7 +133,7 @@ class FlattenFunction(FunctionMultiMixin, Function):
     function_name = 'flatten'
 
     def process(self, data_file, context):
-        if data_file.data_format != 'jsonl':
+        if data_file.file_format != 'jsonl':
             raise Exception('Not supported file type')
         if data_file.file_type == 'index':
             return data_file
@@ -279,7 +279,7 @@ class MergeFunction(FunctionMultiMixin, Function):
         file_count = 0
         count = 0
         new_data_files = []
-        dst_path = os.path.join(context.temp_dir, f'merge-{group_name}_{file_count}.jsonl')
+        dst_path = os.path.join(context.temp_dir, f'{context.data_file.name}-merge-{group_name}_{file_count}.jsonl')
         file_saver = AtomicSaver(dst_path)
         file_saver.setup()
         for file in file_list:
@@ -291,7 +291,7 @@ class MergeFunction(FunctionMultiMixin, Function):
                     count = 0
                     file_saver.__exit__(None, None, None)
                     new_data_files.append(context.create_data_file(file_saver.dest_path))
-                    next_dst_path = os.path.join(context.temp_dir, f'merge-{group_name}_{file_count}.jsonl')
+                    next_dst_path = os.path.join(context.temp_dir, f'{context.data_file.name}-merge-{group_name}_{file_count}.jsonl')
                     file_saver = AtomicSaver(next_dst_path)
                     file_saver.setup()
                 count += 1

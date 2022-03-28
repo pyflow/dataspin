@@ -29,6 +29,15 @@ def run_process(ctx, project, process_name):
     sm.load_one(project)
     sm.run_process(project, process_name)
 
+@click.command()
+@click.argument("project", type=click.Path(exists=True))
+@click.argument("process_name", type=str)
+@click.argument("recover_path", type=click.Path(exists=True))
+@click.pass_context
+def recover_process(ctx, project, process_name, recover_path):
+    sm = SpinManager()
+    sm.load_one(project)
+    sm.recover_process(project, process_name, recover_path)
 
 @click.command()
 @click.argument("project", type=click.Path(exists=True))
@@ -46,3 +55,4 @@ def start(ctx, project):
 main.add_command(run)
 main.add_command(start)
 main.add_command(run_process)
+main.add_command(recover_process)
