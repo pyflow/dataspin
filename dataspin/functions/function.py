@@ -191,6 +191,7 @@ class DeduplicateFunction(Function):
         if data_file.file_type == 'index':
             return data_file
         pks = self.args['key']
+        context.update_pk_cache(data_file, pks)
         dst_path = os.path.join(context.temp_dir, f'{data_file.name}-deduplicate.jsonl')
         pk_values = set()
         with atomic_save(dst_path) as f:
@@ -199,12 +200,12 @@ class DeduplicateFunction(Function):
                 for pk in pks:
                     pk_value.append(data[pk])
                 pk_value = tuple(pk_value)
-                if pk_value in pk_values:
+                if pk_value in pk_values or context.is_duplicated_data(data):
                     continue
                 pk_values.add(pk_value)
                 f.write(json.dumps(data).encode('utf-8'))
                 f.write(b'\n')
-        return data_file, context.create_data_file(file_path=dst_path, tags=data_file.tags)
+        return data_file, context.create_data_file(file_path=dst_path, tags= data_file.tags)
 
 
 class FilterFunction(FunctionMultiMixin, Function):

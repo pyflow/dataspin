@@ -26,7 +26,7 @@ class StorageConfig:
     name: str
     url: str
     args: Optional[dict] = field(default_factory=dict)
-
+    
 @dataclass
 class Field:
     name: str
@@ -76,7 +76,7 @@ class ProjectConfig:
     pk_caches: Optional[List[PrimaryKeyCacheConfig]] = field(default_factory=list)
     webhooks: Optional[List[WebhookConfig]] = field(default_factory=list)
     data_processes: Optional[List[DataProcessConfig]] = field(default_factory=list)
-
+    
     @classmethod
     def load(cls, project_fp):
         factory = dataclass_factory.Factory()

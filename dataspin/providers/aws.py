@@ -7,8 +7,6 @@ import boto3
 
 from basepy.log import logger
 
-
-
 class SQSStreamProvider:
     def __init__(self, name=None, access_key=None, secret_key=None, region=None, **kwargs):
         sqs = boto3.resource('sqs',
@@ -71,14 +69,14 @@ class S3StorageProvider:
     @property
     def storage_type(self):
         return 's3'
-
+        
     @property
     def path(self):
         return self._path
 
-    def get(self):
+    def get(self,prefix = None):
         paginator = self._s3_client.get_paginator("list_objects_v2")
-        for res in paginator.paginate(Bucket=self._bucket, Prefix=self._prefix):
+        for res in paginator.paginate(Bucket=self._bucket, Prefix= prefix if prefix else self._prefix):
             for item in res.get("Contents", []):
                 yield self._bucket+'/'+item['Key']
 

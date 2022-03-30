@@ -66,11 +66,11 @@ class COSStorageProvider:
     def storage_type(self):
         return 'cos'
 
-    def get(self):
+    def get(self,prefix=None):
         marker = ''
         while True:
             response = self._client.list_objects(
-                Bucket=self._bucket, Prefix=self._prefix, Marker=marker)
+                Bucket=self._bucket, Prefix=prefix if prefix else self._prefix, Marker=marker)
             contents = response.get('Contents')
             if not contents:
                 break

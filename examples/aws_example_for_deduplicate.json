@@ -1,0 +1,82 @@
+{
+    "dataspin": {
+        "working_dir": "./tmp/working"
+    },
+    "streams" : [
+        {
+            "name": "sqs_source_data",
+            "data_format": "dataspin",
+            "url": "sqs://./sqs_name?access_key=access_key&secret_key=secret_key&region=regoin_name"
+        },{
+            "name": "sqs_target_data",
+            "data_format": "dataspin",
+            "url": "sqs://./sqs_name?access_key=access_key&secret_key=secret_key&region=regoin_name"
+        }
+    ],
+    "storages": [
+        {
+            "name": "simple_target",
+            "url": "s3://./bucket/prefix?access_key=access_key&secret_key=secret_key&region=regoin_name"
+        },{
+            "name": "file_target",
+            "url": "s3://./bucket/prefix?access_key=access_key&secret_key=secret_key&region=regoin_name"
+        },{
+            "name":"index_source",
+            "url": "s3://./bucket/prefix?access_key=access_key&secret_key=secret_key&region=regoin_name",
+            "args":{
+                "index_pattern": "datalog/event/{app_id}/{year}/{month}/{day}/{hour}/{minute}/{second}",
+                "time_window": "24h"
+            }
+            
+        }
+    ],
+    "data_views":[
+        {
+            "name": "table",
+            "table_format": "jsonl",
+            "fields": [
+                {
+                    "name": "app_id",
+                    "type": "string"
+                },
+                {
+                    "name": "event_name",
+                    "type": "string"
+                },
+                {
+                    "name": "event_id",
+                    "type": "string"
+                },
+                {
+                    "name": "bp_timestamp",
+                    "type": "date"
+                }
+            ]
+        }
+    ],
+    "data_processes":[
+        {
+            "name": "split and build index",
+            "description": "",
+            "source": "sqs_source_data",
+            "processes":[
+                {
+                    "name": "deduplicate by event_id",
+                    "function": "deduplicate",
+                    "args": {
+                        "key": ["app_id","event_id"]
+                    }
+                },
+                {
+                    "name": "save to target",
+                    "function": "save",
+                    "args": {
+                        "location": "simple_target",
+                        "path_suffix": "{service}/app_id={app_id}",
+                        "trigger": "sqs_target_data"
+                    }
+                }
+            ]
+        }
+    ]
+}
