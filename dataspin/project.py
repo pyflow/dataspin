@@ -26,7 +26,7 @@ class StorageConfig:
     name: str
     url: str
     args: Optional[dict] = field(default_factory=dict)
-
+    
 @dataclass
 class Field:
     name: str
@@ -58,17 +58,9 @@ class ProcessFunctionConfig:
     args: Optional[dict] = field(default_factory=dict)
 
 @dataclass
-class IndexConfig:
-    source: str
-    time_window: str
-    index_pattern: str
-    index_keys: list
-
-@dataclass
 class DataProcessConfig:
     name: str
     source: str
-    index: IndexConfig
     description: Optional[str] = ""
     source_args: Optional[dict] = field(default_factory=dict)
     schedules: Optional[List[str]] = field(default_factory=list)

@@ -22,7 +22,12 @@
             "url": "s3://./bucket/prefix?access_key=access_key&secret_key=secret_key&region=regoin_name"
         },{
             "name":"index_source",
-            "url": "s3://./bucket/prefix?access_key=access_key&secret_key=secret_key&region=regoin_name"
+            "url": "s3://./bucket/prefix?access_key=access_key&secret_key=secret_key&region=regoin_name",
+            "args":{
+                "index_pattern": "datalog/event/{app_id}/{year}/{month}/{day}/{hour}/{minute}/{second}",
+                "time_window": "24h"
+            }
+            
         }
     ],
     "data_views":[
@@ -54,12 +59,6 @@
             "name": "split and build index",
             "description": "",
             "source": "sqs_source_data",
-            "index":{
-                "source":"index_source",
-                "index_pattern": "datalog/event/{app_id}/{yyyy}/{MM}/{dd}/{hh}/{mm}/..",
-                "time_window": "24h",
-                "index_keys":["app_id","event_id"]
-            },
             "processes":[
                 {
                     "name": "deduplicate by event_id",

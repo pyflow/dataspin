@@ -191,6 +191,7 @@ class DeduplicateFunction(Function):
         if data_file.file_type == 'index':
             return data_file
         pks = self.args['key']
+        context.update_pk_cache(data_file, pks)
         dst_path = os.path.join(context.temp_dir, f'{data_file.name}-deduplicate.jsonl')
         pk_values = set()
         with atomic_save(dst_path) as f:
