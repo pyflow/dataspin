@@ -118,7 +118,6 @@
                     "function": "save",
                     "args": {
                         "location": "simple_target",
-                        "path_suffix": "{service}/filter={filter}/app_id={app_id}",
                         "table_name": "table",
                         "trigger_stream": "sqs_simple_data"
                     }
